@@ -18,6 +18,7 @@ const componentInput = z.object({
   burnRateLabel: z.string().max(60).optional().nullable(),
   lotNumber: z.string().max(60).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
+  archived: z.boolean().optional(),
 });
 
 export async function GET(req: NextRequest) {
