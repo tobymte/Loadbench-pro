@@ -1,15 +1,4 @@
-/**
- * Workspace access helpers.
- *
- * These are STUBS to be wired up to Clerk + the database once auth is fully
- * configured. The shape is intentionally minimal so route handlers can be
- * written against it today and the implementation can be swapped without
- * touching call sites.
- *
- * TODO(auth): replace stubbed values with real Clerk `auth()` + Prisma lookup
- *   of WorkspaceMember to enforce role/permission boundaries.
- */
-
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/prisma';
 
 export type WorkspaceContext = {
@@ -18,12 +7,6 @@ export type WorkspaceContext = {
   role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
 };
 
-/**
- * Resolve the current workspace context for a request.
- *
- * In the scaffold this returns a deterministic dev context so the UI renders
- * without auth configured. Replace with the real implementation below.
- */
 export async function getWorkspaceContext(): Promise<WorkspaceContext> {
   if (process.env.LOADBENCH_DISABLE_AUTH === 'true') {
     return {
@@ -33,37 +16,83 @@ export async function getWorkspaceContext(): Promise<WorkspaceContext> {
     };
   }
 
-  // TODO(auth): wire to Clerk
-  // const { userId } = auth();
-  // if (!userId) throw new Error('UNAUTHENTICATED');
-  // const membership = await prisma.workspaceMember.findFirstOrThrow({
-  //   where: { user: { clerkUserId: userId } },
-  //   orderBy: { createdAt: 'asc' },
-  // });
-  // return { userId: membership.userId, workspaceId: membership.workspaceId, role: membership.role };
+  const { userId: clerkUserId } = await auth();
 
-  throw new Error('Workspace context resolution not configured.');
+  if (!clerkUserId) {
+    throw new Error('UNAUTHENTICATED');
+  }
+
+  const clerkUser = await currentUser();
+  const email =
+    clerkUser?.primaryEmailAddress?.emailAddress ??
+    `${clerkUserId}@loadbench.local`;
+  const displayName =
+    clerkUser?.fullName ??
+    clerkUser?.username ??
+    email;
+
+  const user = await prisma.user.upsert({
+    where: { clerkUserId },
+    update: {
+      email,
+      displayName,
+    },
+    create: {
+      clerkUserId,
+      email,
+      displayName,
+    },
+  });
+
+  const existingMembership = await prisma.workspaceMember.findFirst({
+    where: { userId: user.id },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  if (existingMembership) {
+    return {
+      userId: user.id,
+      workspaceId: existingMembership.workspaceId,
+      role: existingMembership.role,
+    };
+  }
+
+  const workspace = await prisma.$transaction(async (tx) => {
+    const createdWorkspace = await tx.workspace.create({
+      data: {
+        name: `${displayName}'s LoadBench`,
+        slug: `workspace-${user.id}`,
+        ownerId: user.id,
+      },
+    });
+
+    await tx.workspaceMember.create({
+      data: {
+        workspaceId: createdWorkspace.id,
+        userId: user.id,
+        role: 'OWNER',
+      },
+    });
+
+    return createdWorkspace;
+  });
+
+  return {
+    userId: user.id,
+    workspaceId: workspace.id,
+    role: 'OWNER',
+  };
 }
 
-/**
- * Assert the caller can write to a workspace-scoped entity. Stub-only.
- */
 export function assertCanWrite(ctx: WorkspaceContext) {
   if (ctx.role === 'VIEWER') {
     throw new Error('FORBIDDEN: viewer cannot mutate.');
   }
 }
 
-/**
- * Scope a Prisma where-clause to a workspace. Use on every query touching
- * workspace-scoped tables.
- */
 export function scopeToWorkspace<T extends Record<string, unknown>>(
   ctx: WorkspaceContext,
   where: T = {} as T,
 ): T & { workspaceId: string } {
   return { ...where, workspaceId: ctx.workspaceId };
 }
-
-// Suppress unused warning when prisma is not referenced in the stub path.
-void prisma;
