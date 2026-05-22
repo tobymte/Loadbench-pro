@@ -20,6 +20,7 @@ const NAV: Array<{
     items: [
       { href: '/cartridges', label: 'Cartridges' },
       { href: '/components', label: 'Components' },
+      { href: '/sources', label: 'Sources' },
       { href: '/loads', label: 'Loads' },
       { href: '/sessions', label: 'Range sessions' },
     ],
@@ -57,7 +58,7 @@ export function Sidebar() {
   const pathname = usePathname() ?? '/';
 
   return (
-    <aside className="hidden md:flex md:flex-col w-60 shrink-0 border-r border-border bg-bg-surface">
+    <aside className="hidden md:flex md:flex-col w-60 shrink-0 border-r border-border bg-bg-surface print:hidden">
       <div className="px-5 py-5 border-b border-border flex items-center gap-2.5 text-accent">
         <Logo />
         <div className="leading-tight">

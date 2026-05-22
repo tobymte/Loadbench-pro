@@ -5,21 +5,21 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 
-/**
- * Starter Load creation form.
- *
- * UI-only validation is intentionally minimal — the canonical safety rules
- * (source required for charge-bearing saves, charge ≤ published max,
- * explicit acknowledgement) run on the server in `lib/validation/load.ts`
- * and surface as inline errors below.
- *
- * TODO(forms): replace the static <select> options with workspace-scoped
- *   Cartridge / Component / Source dropdowns loaded from the database.
- */
-
 type Issue = { field?: string; code: string; message: string };
 
-export function LoadForm() {
+export type LoadFormOption = { value: string; label: string };
+
+export type LoadFormOptions = {
+  cartridges: LoadFormOption[];
+  bullets: LoadFormOption[];
+  powders: LoadFormOption[];
+  primers: LoadFormOption[];
+  cases: LoadFormOption[];
+  rifles: LoadFormOption[];
+  sources: LoadFormOption[];
+};
+
+export function LoadForm({ options }: { options: LoadFormOptions }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -33,7 +33,7 @@ export function LoadForm() {
     const fd = new FormData(form);
     const chargeStr = (fd.get('chargeGr') as string | null)?.trim();
     const body = {
-      name: fd.get('name'),
+      name: ((fd.get('name') as string | null) ?? '').trim(),
       status: fd.get('status') || 'DRAFT',
       cartridgeId: fd.get('cartridgeId'),
       bulletId: fd.get('bulletId'),
@@ -48,8 +48,8 @@ export function LoadForm() {
       caseTrimLengthIn: numberOrNull(fd.get('caseTrimLengthIn')),
       neckTensionThou: numberOrNull(fd.get('neckTensionThou')),
       safetyAcknowledged: acked,
-      safetyNotes: fd.get('safetyNotes') || null,
-      notes: fd.get('notes') || null,
+      safetyNotes: stringOrNull(fd.get('safetyNotes')),
+      notes: stringOrNull(fd.get('notes')),
     };
 
     startTransition(async () => {
@@ -60,22 +60,44 @@ export function LoadForm() {
       });
       if (res.ok) {
         const out = await res.json();
-        router.push(`/loads/${out.id ?? ''}`);
+        if (out?.id) {
+          router.push(`/loads/${out.id}`);
+        } else {
+          router.push('/loads');
+        }
+        router.refresh();
         return;
       }
-      const out = (await res.json().catch(() => ({}))) as { issues?: Issue[] };
-      setIssues(out.issues ?? [{ code: 'UNKNOWN', message: 'Save failed.' }]);
+      const out = (await res.json().catch(() => ({}))) as {
+        issues?: Array<{
+          field?: string;
+          path?: Array<string | number>;
+          code?: string;
+          message?: string;
+        }>;
+      };
+      const mapped: Issue[] = (out.issues ?? []).map((i) => ({
+        field: i.field ?? i.path?.[0]?.toString(),
+        code: i.code ?? 'INVALID',
+        message: i.message ?? 'Invalid value.',
+      }));
+      setIssues(
+        mapped.length > 0
+          ? mapped
+          : [{ code: 'UNKNOWN', message: 'Save failed.' }],
+      );
     });
   }
 
   const issuesFor = (field: string) => issues.filter((i) => i.field === field);
+  const formIssues = issues.filter((i) => !i.field);
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6" data-testid="load-form">
       <Card>
         <CardHeader title="Identification" description="Name and status of this load." />
         <CardBody className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="Name" name="name" required />
+          <Field label="Name" name="name" required testId="load-name" issues={issuesFor('name')} />
           <SelectField
             label="Status"
             name="status"
@@ -84,10 +106,8 @@ export function LoadForm() {
           <SelectField
             label="Rifle"
             name="rifleId"
-            options={[
-              { value: '', label: '— None —' },
-              // TODO(forms): populate with workspace rifles
-            ]}
+            options={[{ value: '', label: '— None —' }, ...options.rifles]}
+            issues={issuesFor('rifleId')}
           />
         </CardBody>
       </Card>
@@ -102,44 +122,37 @@ export function LoadForm() {
             label="Cartridge"
             name="cartridgeId"
             required
-            options={[
-              { value: '', label: '— Select cartridge —' },
-              // TODO(forms): workspace cartridges
-            ]}
+            testId="load-cartridge"
+            options={[{ value: '', label: '— Select cartridge —' }, ...options.cartridges]}
+            issues={issuesFor('cartridgeId')}
           />
           <SelectField
             label="Bullet"
             name="bulletId"
             required
-            options={[
-              { value: '', label: '— Select bullet —' },
-              // TODO(forms): workspace BULLET components
-            ]}
+            testId="load-bullet"
+            options={[{ value: '', label: '— Select bullet —' }, ...options.bullets]}
+            issues={issuesFor('bulletId')}
           />
           <SelectField
             label="Powder"
             name="powderId"
             required
-            options={[
-              { value: '', label: '— Select powder —' },
-              // TODO(forms): workspace POWDER components
-            ]}
+            testId="load-powder"
+            options={[{ value: '', label: '— Select powder —' }, ...options.powders]}
+            issues={issuesFor('powderId')}
           />
           <SelectField
             label="Primer"
             name="primerId"
-            options={[
-              { value: '', label: '— None —' },
-              // TODO(forms): workspace PRIMER components
-            ]}
+            options={[{ value: '', label: '— None —' }, ...options.primers]}
+            issues={issuesFor('primerId')}
           />
           <SelectField
             label="Case"
             name="caseId"
-            options={[
-              { value: '', label: '— None —' },
-              // TODO(forms): workspace CASE components
-            ]}
+            options={[{ value: '', label: '— None —' }, ...options.cases]}
+            issues={issuesFor('caseId')}
           />
         </CardBody>
       </Card>
@@ -161,6 +174,7 @@ export function LoadForm() {
               inputMode="decimal"
               onChange={(e) => setHasCharge(Boolean(e.target.value))}
               aria-describedby="chargeGr-help"
+              data-testid="load-charge"
             />
             <p id="chargeGr-help" className="text-[11px] text-text-faint mt-1">
               Leave blank to save a draft without a charge weight.
@@ -171,24 +185,27 @@ export function LoadForm() {
               </p>
             ))}
           </div>
-          <Field label="OAL (in)" name="cartridgeOalIn" type="number" step="0.001" />
+          <Field label="OAL (in)" name="cartridgeOalIn" type="number" step="0.001" issues={issuesFor('cartridgeOalIn')} />
           <Field
             label="Base→ogive (in)"
             name="cartridgeBaseToOgiveIn"
             type="number"
             step="0.001"
+            issues={issuesFor('cartridgeBaseToOgiveIn')}
           />
           <Field
             label="Case trim length (in)"
             name="caseTrimLengthIn"
             type="number"
             step="0.001"
+            issues={issuesFor('caseTrimLengthIn')}
           />
           <Field
             label="Neck tension (thou)"
             name="neckTensionThou"
             type="number"
             step="0.5"
+            issues={issuesFor('neckTensionThou')}
           />
         </CardBody>
       </Card>
@@ -202,16 +219,10 @@ export function LoadForm() {
           <SelectField
             label="Source"
             name="sourceId"
-            options={[
-              { value: '', label: '— None —' },
-              // TODO(forms): workspace sources
-            ]}
+            testId="load-source"
+            options={[{ value: '', label: '— None —' }, ...options.sources]}
+            issues={issuesFor('sourceId')}
           />
-          {issuesFor('sourceId').map((i) => (
-            <p key={i.code} className="text-[12px] text-danger">
-              {i.message}
-            </p>
-          ))}
 
           <div>
             <label htmlFor="safetyNotes">Safety notes</label>
@@ -224,6 +235,7 @@ export function LoadForm() {
               checked={acked}
               onChange={(e) => setAcked(e.target.checked)}
               className="!w-4 !h-4 mt-0.5"
+              data-testid="load-ack"
             />
             <span className="text-xs text-text-muted leading-relaxed normal-case tracking-normal">
               I am citing a current, published reference source. I have not
@@ -247,7 +259,7 @@ export function LoadForm() {
         </CardBody>
       </Card>
 
-      {issues.filter((i) => !i.field).map((i) => (
+      {formIssues.map((i) => (
         <div
           key={i.code}
           className="rounded-md border border-danger/40 bg-danger-subtle px-4 py-2 text-[12px] text-danger"
@@ -257,7 +269,7 @@ export function LoadForm() {
       ))}
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={pending || (hasCharge && !acked)}>
+        <Button type="submit" disabled={pending || (hasCharge && !acked)} data-testid="load-submit">
           {pending ? 'Saving…' : 'Save load'}
         </Button>
         <Button type="button" variant="secondary" onClick={() => router.back()}>
@@ -274,9 +286,17 @@ export function LoadForm() {
 }
 
 function numberOrNull(v: FormDataEntryValue | null): number | null {
-  if (v === null || v === '') return null;
-  const n = Number(v);
+  if (v === null) return null;
+  const s = v.toString().trim();
+  if (s === '') return null;
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
+}
+
+function stringOrNull(v: FormDataEntryValue | null): string | null {
+  if (v === null) return null;
+  const s = v.toString().trim();
+  return s === '' ? null : s;
 }
 
 function Field({
@@ -285,12 +305,16 @@ function Field({
   required,
   type = 'text',
   step,
+  testId,
+  issues,
 }: {
   label: string;
   name: string;
   required?: boolean;
   type?: string;
   step?: string;
+  testId?: string;
+  issues?: Issue[];
 }) {
   return (
     <div>
@@ -298,7 +322,12 @@ function Field({
         {label}
         {required && <span className="text-accent ml-1">*</span>}
       </label>
-      <input id={name} name={name} type={type} step={step} required={required} />
+      <input id={name} name={name} type={type} step={step} required={required} data-testid={testId} />
+      {issues?.map((i) => (
+        <p key={i.code} className="text-[11px] text-danger mt-1">
+          {i.message}
+        </p>
+      ))}
     </div>
   );
 }
@@ -308,11 +337,15 @@ function SelectField({
   name,
   required,
   options,
+  testId,
+  issues,
 }: {
   label: string;
   name: string;
   required?: boolean;
   options: Array<string | { value: string; label: string }>;
+  testId?: string;
+  issues?: Issue[];
 }) {
   return (
     <div>
@@ -320,19 +353,24 @@ function SelectField({
         {label}
         {required && <span className="text-accent ml-1">*</span>}
       </label>
-      <select id={name} name={name} required={required} defaultValue="">
+      <select id={name} name={name} required={required} defaultValue="" data-testid={testId}>
         {options.map((o) =>
           typeof o === 'string' ? (
             <option key={o} value={o}>
               {o}
             </option>
           ) : (
-            <option key={o.value} value={o.value}>
+            <option key={o.value || '__empty__'} value={o.value}>
               {o.label}
             </option>
           ),
         )}
       </select>
+      {issues?.map((i) => (
+        <p key={i.code} className="text-[11px] text-danger mt-1">
+          {i.message}
+        </p>
+      ))}
     </div>
   );
 }

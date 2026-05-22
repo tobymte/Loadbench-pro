@@ -1,27 +1,75 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { prisma } from '@/lib/db/prisma';
+import { getWorkspaceContext } from '@/lib/auth/workspace';
 
-// TODO(backend): fetch the load by id (scoped to workspace) and surface its
-//   cartridge, bullet, powder, primer, case, source, and range sessions.
+export const dynamic = 'force-dynamic';
 
-export default function LoadDetailPage({ params }: { params: { id: string } }) {
+export default async function LoadDetailPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const ctx = await getWorkspaceContext();
+  const load = await prisma.load.findFirst({
+    where: { id: params.id, workspaceId: ctx.workspaceId },
+    include: {
+      cartridge: { select: { name: true } },
+      bullet: true,
+      powder: true,
+      primer: true,
+      case_: true,
+      rifle: { select: { id: true, name: true } },
+      source: {
+        select: { id: true, title: true, citation: true, publishedMaxGr: true },
+      },
+      sessions: {
+        orderBy: { date: 'desc' },
+        select: {
+          id: true,
+          date: true,
+          location: true,
+          avgVelocityFps: true,
+          esFps: true,
+          sdFps: true,
+          groupSizeIn: true,
+          shotsFired: true,
+        },
+      },
+    },
+  });
+
+  if (!load) {
+    notFound();
+  }
+
+  const tone =
+    load.status === 'TESTED'
+      ? 'success'
+      : load.status === 'LOADED'
+        ? 'accent'
+        : 'neutral';
+
   return (
     <>
       <Topbar
-        title={`Load ${params.id}`}
+        title={load.name}
         actions={
           <>
-            <Link href={`/api/loads/${params.id}/export`}>
+            <Link href={`/api/loads/${load.id}/export`}>
               <Button size="sm" variant="secondary">
                 Export JSON
               </Button>
             </Link>
-            <Button size="sm" variant="secondary">
-              Edit
-            </Button>
+            <Link href="/notebook">
+              <Button size="sm" variant="secondary">
+                Print card
+              </Button>
+            </Link>
           </>
         }
       />
@@ -30,23 +78,116 @@ export default function LoadDetailPage({ params }: { params: { id: string } }) {
           <CardHeader
             title="Load details"
             description="The complete record for this load."
-            actions={<Badge tone="neutral">DRAFT</Badge>}
+            actions={<Badge tone={tone}>{load.status}</Badge>}
           />
           <CardBody>
             <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4 text-sm">
-              <Detail label="Cartridge" value="—" />
-              <Detail label="Bullet" value="—" />
-              <Detail label="Powder" value="—" />
-              <Detail label="Primer" value="—" />
-              <Detail label="Charge (gr)" value="—" mono />
-              <Detail label="OAL (in)" value="—" mono />
-              <Detail label="Base→ogive (in)" value="—" mono />
-              <Detail label="Neck tension (thou)" value="—" mono />
-              <Detail label="Source" value="—" />
-              <Detail label="Published max (gr)" value="—" mono />
-              <Detail label="Safety acknowledged" value="—" />
-              <Detail label="Rifle" value="—" />
+              <Detail label="Cartridge" value={load.cartridge?.name ?? '—'} />
+              <Detail
+                label="Bullet"
+                value={
+                  load.bullet
+                    ? `${load.bullet.manufacturer} ${load.bullet.model}${load.bullet.bulletWeightGr ? ` ${load.bullet.bulletWeightGr}gr` : ''}`
+                    : '—'
+                }
+              />
+              <Detail
+                label="Powder"
+                value={
+                  load.powder
+                    ? `${load.powder.manufacturer} ${load.powder.model}`
+                    : '—'
+                }
+              />
+              <Detail
+                label="Primer"
+                value={
+                  load.primer
+                    ? `${load.primer.manufacturer} ${load.primer.model}`
+                    : '—'
+                }
+              />
+              <Detail
+                label="Case"
+                value={
+                  load.case_
+                    ? `${load.case_.manufacturer} ${load.case_.model}`
+                    : '—'
+                }
+              />
+              <Detail
+                label="Charge (gr)"
+                value={load.chargeGr != null ? String(load.chargeGr) : '—'}
+                mono
+              />
+              <Detail
+                label="OAL (in)"
+                value={load.cartridgeOalIn != null ? String(load.cartridgeOalIn) : '—'}
+                mono
+              />
+              <Detail
+                label="Base→ogive (in)"
+                value={
+                  load.cartridgeBaseToOgiveIn != null
+                    ? String(load.cartridgeBaseToOgiveIn)
+                    : '—'
+                }
+                mono
+              />
+              <Detail
+                label="Case trim (in)"
+                value={
+                  load.caseTrimLengthIn != null
+                    ? String(load.caseTrimLengthIn)
+                    : '—'
+                }
+                mono
+              />
+              <Detail
+                label="Neck tension (thou)"
+                value={
+                  load.neckTensionThou != null
+                    ? String(load.neckTensionThou)
+                    : '—'
+                }
+                mono
+              />
+              <Detail label="Source" value={load.source?.title ?? '—'} />
+              <Detail
+                label="Published max (gr)"
+                value={
+                  load.source?.publishedMaxGr != null
+                    ? String(load.source.publishedMaxGr)
+                    : '—'
+                }
+                mono
+              />
+              <Detail
+                label="Safety acknowledged"
+                value={load.safetyAcknowledged ? 'Yes' : 'No'}
+              />
+              <Detail label="Rifle" value={load.rifle?.name ?? '—'} />
             </dl>
+            {load.safetyNotes && (
+              <div className="mt-5">
+                <div className="text-[11px] uppercase tracking-wider text-text-faint">
+                  Safety notes
+                </div>
+                <p className="mt-1 text-sm text-text-muted whitespace-pre-wrap">
+                  {load.safetyNotes}
+                </p>
+              </div>
+            )}
+            {load.notes && (
+              <div className="mt-5">
+                <div className="text-[11px] uppercase tracking-wider text-text-faint">
+                  Notes
+                </div>
+                <p className="mt-1 text-sm text-text-muted whitespace-pre-wrap">
+                  {load.notes}
+                </p>
+              </div>
+            )}
           </CardBody>
         </Card>
 
@@ -54,19 +195,55 @@ export default function LoadDetailPage({ params }: { params: { id: string } }) {
           <CardHeader
             title="Range sessions"
             description="Sessions where this load was shot."
-            actions={<Button size="sm">Log session</Button>}
           />
           <CardBody>
-            <p className="text-sm text-text-muted">
-              No range sessions recorded against this load yet.
-            </p>
+            {load.sessions.length === 0 ? (
+              <p className="text-sm text-text-muted">
+                No range sessions recorded against this load yet.
+              </p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Location</th>
+                    <th className="text-right">Shots</th>
+                    <th className="text-right">Avg vel (fps)</th>
+                    <th className="text-right">ES</th>
+                    <th className="text-right">SD</th>
+                    <th className="text-right">Group (in)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {load.sessions.map((s) => (
+                    <tr key={s.id}>
+                      <td className="text-text-muted">
+                        {new Date(s.date).toLocaleDateString()}
+                      </td>
+                      <td className="text-text-muted">{s.location ?? '—'}</td>
+                      <td className="text-right tabular-nums">{s.shotsFired ?? '—'}</td>
+                      <td className="text-right tabular-nums">
+                        {s.avgVelocityFps ?? '—'}
+                      </td>
+                      <td className="text-right tabular-nums">{s.esFps ?? '—'}</td>
+                      <td className="text-right tabular-nums">{s.sdFps ?? '—'}</td>
+                      <td className="text-right tabular-nums">
+                        {s.groupSizeIn ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardBody>
         </Card>
 
         <Card>
-          <CardHeader title="Audit history" description="Every change to this record is logged." />
           <CardBody>
-            <p className="text-sm text-text-muted">No history yet.</p>
+            <p className="text-[11px] text-text-faint leading-relaxed">
+              LoadBench Pro records the data you enter and the source you cite.
+              It does not certify load safety or recommend charge weights.
+            </p>
           </CardBody>
         </Card>
       </div>
@@ -74,10 +251,20 @@ export default function LoadDetailPage({ params }: { params: { id: string } }) {
   );
 }
 
-function Detail({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Detail({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
     <div>
-      <dt className="text-[11px] uppercase tracking-wider text-text-faint">{label}</dt>
+      <dt className="text-[11px] uppercase tracking-wider text-text-faint">
+        {label}
+      </dt>
       <dd
         className={
           'mt-1 text-text ' + (mono ? 'font-mono tabular-nums' : 'font-medium')

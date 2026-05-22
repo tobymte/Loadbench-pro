@@ -94,3 +94,41 @@ td {
 tr:hover td {
   background: #151a22;
 }
+
+/* Print — hide app chrome, render printables on white */
+@media print {
+  @page {
+    margin: 0.5in;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  aside,
+  header.h-14,
+  .print\:hidden,
+  [data-safety-banner] {
+    display: none !important;
+  }
+  main {
+    background: #fff !important;
+  }
+  .scrollbar-thin {
+    overflow: visible !important;
+  }
+  .print-card,
+  .print-label {
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+  .print-card {
+    page-break-after: always;
+    break-after: page;
+  }
+  .print-label {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export function SafetyBanner() {
   return (
-    <div className="border-b border-danger/40 bg-danger-subtle text-text">
+    <div className="border-b border-danger/40 bg-danger-subtle text-text print:hidden" data-safety-banner>
       <div className="px-6 py-2 flex items-center gap-3 text-[12px]">
         <span
           aria-hidden

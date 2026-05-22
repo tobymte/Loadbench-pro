@@ -4,30 +4,31 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
+import { prisma } from '@/lib/db/prisma';
+import { getWorkspaceContext } from '@/lib/auth/workspace';
 
-// TODO(backend): fetch loads scoped to workspace, with bullet/powder/cartridge joins.
+export const dynamic = 'force-dynamic';
 
-type LoadRow = {
-  id: string;
-  name: string;
-  cartridge: string;
-  bullet: string;
-  powder: string;
-  chargeGr: number | null;
-  status: 'DRAFT' | 'PLANNED' | 'LOADED' | 'TESTED' | 'ARCHIVED';
-  source: string | null;
-};
+export default async function LoadsPage() {
+  const ctx = await getWorkspaceContext();
+  const rows = await prisma.load.findMany({
+    where: { workspaceId: ctx.workspaceId },
+    orderBy: { updatedAt: 'desc' },
+    include: {
+      cartridge: { select: { name: true } },
+      bullet: { select: { manufacturer: true, model: true } },
+      powder: { select: { manufacturer: true, model: true } },
+      source: { select: { title: true } },
+    },
+  });
 
-const ROWS: LoadRow[] = [];
-
-export default function LoadsPage() {
   return (
     <>
       <Topbar
         title="Loads"
         actions={
           <Link href="/loads/new">
-            <Button>New load</Button>
+            <Button data-testid="loads-new">New load</Button>
           </Link>
         }
       />
@@ -37,7 +38,7 @@ export default function LoadsPage() {
             title="All loads"
             description="Every load you have recorded. Status reflects what you have entered, not whether the load is safe."
           />
-          {ROWS.length === 0 ? (
+          {rows.length === 0 ? (
             <div className="p-5">
               <EmptyState
                 title="No loads recorded yet"
@@ -50,7 +51,7 @@ export default function LoadsPage() {
               />
             </div>
           ) : (
-            <table>
+            <table data-testid="loads-table">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -63,7 +64,7 @@ export default function LoadsPage() {
                 </tr>
               </thead>
               <tbody>
-                {ROWS.map((r) => (
+                {rows.map((r) => (
                   <tr key={r.id}>
                     <td>
                       <Link
@@ -73,13 +74,17 @@ export default function LoadsPage() {
                         {r.name}
                       </Link>
                     </td>
-                    <td className="text-text-muted">{r.cartridge}</td>
-                    <td className="text-text-muted">{r.bullet}</td>
-                    <td className="text-text-muted">{r.powder}</td>
+                    <td className="text-text-muted">{r.cartridge?.name ?? '—'}</td>
+                    <td className="text-text-muted">
+                      {r.bullet ? `${r.bullet.manufacturer} ${r.bullet.model}` : '—'}
+                    </td>
+                    <td className="text-text-muted">
+                      {r.powder ? `${r.powder.manufacturer} ${r.powder.model}` : '—'}
+                    </td>
                     <td className="text-right tabular-nums">
                       {r.chargeGr ?? '—'}
                     </td>
-                    <td className="text-text-muted">{r.source ?? '—'}</td>
+                    <td className="text-text-muted">{r.source?.title ?? '—'}</td>
                     <td>
                       <Badge
                         tone={
