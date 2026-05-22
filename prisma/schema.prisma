@@ -1,0 +1,381 @@
+// LoadBench Pro — Prisma schema
+// Safety-first reloading notebook. This schema records what the user does and
+// what published source they cite — it does NOT compute or recommend loads.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =============================================================================
+// Identity & workspaces
+// =============================================================================
+
+model User {
+  id           String   @id @default(cuid())
+  clerkUserId  String   @unique
+  email        String   @unique
+  displayName  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships   WorkspaceMember[]
+  ownedWorkspaces Workspace[]    @relation("WorkspaceOwner")
+  auditEvents   AuditEvent[]
+  importBatches ImportBatch[]
+  printJobs     PrintJob[]
+  fileObjects   FileObject[]
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members     WorkspaceMember[]
+  cartridges  Cartridge[]
+  components  Component[]
+  rifles      Rifle[]
+  sources     Source[]
+  loads       Load[]
+  sessions    RangeSession[]
+  auditEvents AuditEvent[]
+  importBatches ImportBatch[]
+  printJobs   PrintJob[]
+  fileObjects FileObject[]
+
+  @@index([ownerId])
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  createdAt   DateTime      @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+// =============================================================================
+// Reference data
+// =============================================================================
+
+model Cartridge {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  // Common reference fields. Stored as user inputs against published references.
+  name          String                       // e.g. "6.5 Creedmoor"
+  saami         String?                      // SAAMI / CIP designation if known
+  caseCapacityGrH2O Float?                   // water grains, optional
+  maxPressurePsi    Int?                     // published MAP, optional
+  bulletDiameterIn  Float?                   // e.g. 0.264
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  loads         Load[]
+  rifles        Rifle[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+enum ComponentKind {
+  BULLET
+  POWDER
+  PRIMER
+  CASE
+}
+
+model Component {
+  id            String        @id @default(cuid())
+  workspaceId   String
+  kind          ComponentKind
+  manufacturer  String
+  model         String
+  // BULLET-specific
+  bulletWeightGr Float?
+  bulletBc       Float?
+  // POWDER-specific
+  burnRateLabel  String?      // user-entered, e.g. "H4350"
+  // shared
+  lotNumber     String?
+  notes         String?
+  archived      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  bulletLoads   Load[]    @relation("LoadBullet")
+  powderLoads   Load[]    @relation("LoadPowder")
+  primerLoads   Load[]    @relation("LoadPrimer")
+  caseLoads     Load[]    @relation("LoadCase")
+
+  @@index([workspaceId, kind])
+}
+
+model Rifle {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  name          String
+  manufacturer  String?
+  model         String?
+  cartridgeId   String?
+  barrelLengthIn Float?
+  twistRate     String?       // "1:8"
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace     Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cartridge     Cartridge? @relation(fields: [cartridgeId], references: [id], onDelete: SetNull)
+  sessions      RangeSession[]
+  loads         Load[]
+
+  @@index([workspaceId])
+}
+
+// Published reference source — manual, manufacturer data, etc.
+model Source {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  title         String
+  publisher     String?  // e.g. "Hodgdon", "Sierra"
+  edition       String?
+  publishedYear Int?
+  url           String?
+  // Pages or sections cited from the source.
+  citation      String?
+  // The published max charge captured from this source for the referenced
+  // bullet/powder/primer/cartridge combination, used for validation.
+  publishedMaxGr Float?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  loads         Load[]
+
+  @@index([workspaceId])
+}
+
+// =============================================================================
+// Loads — the heart of the notebook
+// =============================================================================
+
+enum LoadStatus {
+  DRAFT
+  PLANNED
+  LOADED
+  TESTED
+  ARCHIVED
+}
+
+model Load {
+  id            String     @id @default(cuid())
+  workspaceId   String
+  // Required references
+  cartridgeId   String
+  bulletId      String
+  powderId      String
+  primerId      String?
+  caseId        String?
+  rifleId       String?
+  // Citation to a published source (required for charge-bearing saves;
+  // enforced in `lib/validation/load.ts`, not at the DB layer, so drafts
+  // can be saved without a source).
+  sourceId      String?
+
+  name          String
+  status        LoadStatus @default(DRAFT)
+
+  // Safety-relevant fields
+  chargeGr             Float?            // powder charge in grains
+  cartridgeOalIn       Float?            // overall length
+  cartridgeBaseToOgiveIn Float?
+  caseTrimLengthIn     Float?
+  neckTensionThou      Float?            // .001"
+  // The user must explicitly check this before saving a charge-bearing load.
+  safetyAcknowledged   Boolean           @default(false)
+  // Free-form note for safety context (e.g. "starting load, working up").
+  safetyNotes          String?
+
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Audit
+  createdById   String?
+  updatedById   String?
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cartridge     Cartridge @relation(fields: [cartridgeId], references: [id])
+  bullet        Component @relation("LoadBullet", fields: [bulletId], references: [id])
+  powder        Component @relation("LoadPowder", fields: [powderId], references: [id])
+  primer        Component? @relation("LoadPrimer", fields: [primerId], references: [id])
+  case_         Component? @relation("LoadCase", fields: [caseId], references: [id])
+  rifle         Rifle?    @relation(fields: [rifleId], references: [id], onDelete: SetNull)
+  source        Source?   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  sessions      RangeSession[]
+
+  @@index([workspaceId, status])
+  @@index([cartridgeId])
+}
+
+// =============================================================================
+// Range sessions
+// =============================================================================
+
+model RangeSession {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  loadId        String?
+  rifleId       String?
+  date          DateTime @default(now())
+  location      String?
+  tempF         Float?
+  humidityPct   Float?
+  pressureInHg  Float?
+  windMph       Float?
+  // Group / chrono summary fields, optional
+  shotsFired    Int?
+  avgVelocityFps Float?
+  esFps         Float?
+  sdFps         Float?
+  groupSizeIn   Float?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  load          Load?     @relation(fields: [loadId], references: [id], onDelete: SetNull)
+  rifle         Rifle?    @relation(fields: [rifleId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+}
+
+// =============================================================================
+// Audit & supporting tables
+// =============================================================================
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String?
+  entityType  String   // "Load", "Component", ...
+  entityId    String
+  action      String   // "create" | "update" | "delete" | "export" | "print"
+  // JSON-encoded snapshot or diff. Stored as String so it can be read on any
+  // Postgres provider without `Json` quirks; consumers can JSON.parse it.
+  payload     String?
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, entityType, entityId])
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model ImportBatch {
+  id          String       @id @default(cuid())
+  workspaceId String
+  userId      String?
+  source      String       // file name or origin label
+  entityType  String       // "Load", "Component", ...
+  status      ImportStatus @default(PENDING)
+  totalRows   Int          @default(0)
+  errorRows   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  completedAt DateTime?
+
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  rows        ImportBatchRow[]
+
+  @@index([workspaceId])
+}
+
+model ImportBatchRow {
+  id        String   @id @default(cuid())
+  batchId   String
+  rowIndex  Int
+  raw       String   // JSON-encoded raw row
+  error     String?
+  imported  Boolean  @default(false)
+
+  batch     ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+}
+
+enum PrintJobStatus {
+  QUEUED
+  RENDERED
+  PRINTED
+  FAILED
+}
+
+model PrintJob {
+  id          String         @id @default(cuid())
+  workspaceId String
+  userId      String?
+  kind        String         // "load-card" | "session-report" | "label"
+  payload     String         // JSON-encoded snapshot of what was printed
+  status      PrintJobStatus @default(QUEUED)
+  createdAt   DateTime       @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+}
+
+model FileObject {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String?
+  // Storage backend reference — we don't store the file here, just metadata.
+  storageKey  String
+  bucket      String?
+  filename    String
+  contentType String
+  byteSize    Int
+  // Optional link back to the entity that owns this file.
+  entityType  String?
+  entityId    String?
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+}
