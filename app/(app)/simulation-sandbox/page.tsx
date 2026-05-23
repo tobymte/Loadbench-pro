@@ -19,7 +19,7 @@ import {
 } from '@/lib/validation/simulationRun';
 import { PaywallNotice } from '@/components/billing/PaywallNotice';
 import { FEATURE_KEYS, getEntitlement } from '@/lib/billing/entitlements';
-import { isStripeConfigured } from '@/lib/billing/stripe';
+import { isBigCommerceConfigured } from '@/lib/billing/bigcommerce';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,7 +98,7 @@ export default async function SimulationSandboxPage() {
     ctx.workspaceId,
     FEATURE_KEYS.PRESSURE_MODELING,
   );
-  const stripeConfigured = isStripeConfigured();
+  const bigcommerceConfigured = isBigCommerceConfigured();
 
   const [
     modelVersions,
@@ -259,9 +259,9 @@ export default async function SimulationSandboxPage() {
         {!pressureModelingEntitlement.hasAccess && (
           <PaywallNotice
             entitlement={pressureModelingEntitlement}
-            stripeConfigured={stripeConfigured}
+            bigcommerceConfigured={bigcommerceConfigured}
             title="Premium: advanced pressure-modeling surfaces"
-            description="The velocity-only validation sandbox below is freely available. A paid subscription unlocks the advanced pressure-modeling workspace — additional review and bookkeeping surfaces only, never load recommendations."
+            description="The velocity-only validation sandbox below is freely available. Purchase via BigCommerce unlocks the advanced pressure-modeling workspace — additional review and bookkeeping surfaces only, never load recommendations."
             featureBullets={[
               'Full pressure-modeling test bench: model-version records, validation-record review, and load-readiness selection.',
               'Expanded solver-input data capture surfaces.',

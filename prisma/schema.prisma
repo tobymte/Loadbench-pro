@@ -68,13 +68,14 @@ model Workspace {
 }
 
 // =============================================================================
-// Billing entitlements (Stripe)
+// Billing entitlements (BigCommerce — Stripe fields retained for backward
+// compatibility while the migration is in flight)
 // =============================================================================
 //
 // WorkspaceEntitlement tracks paid-access state for premium feature keys
 // (e.g. "pressure_modeling") on a per-workspace basis. This table is the
-// single source of truth for gating premium UI; the Stripe webhook updates
-// rows here in response to subscription lifecycle events.
+// single source of truth for gating premium UI; the BigCommerce order
+// webhook updates rows here in response to paid-order events.
 //
 // Nothing in this table changes load validation behaviour. Premium access
 // only unlocks UI surfaces — it does not authorize pressure predictions,
@@ -99,11 +100,17 @@ model WorkspaceEntitlement {
   // per workspace are possible if more premium features are added later.
   featureKey           String
   status               EntitlementStatus @default(INACTIVE)
-  // Stripe identifiers — all optional because an entitlement row may be
-  // created in INACTIVE state before any Stripe interaction.
+  // Legacy Stripe identifiers — retained so existing rows are preserved
+  // through the BigCommerce migration. New flows do not write these.
   stripeCustomerId     String?
   stripeSubscriptionId String?           @unique
   stripePriceId        String?
+  // BigCommerce identifiers for the active checkout / order flow. All
+  // optional because rows may exist before any BigCommerce interaction.
+  bigcommerceOrderId    String?           @unique
+  bigcommerceCartId     String?
+  bigcommerceCustomerId String?
+  bigcommerceCustomerEmail String?
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean           @default(false)
   createdAt            DateTime          @default(now())
@@ -113,6 +120,8 @@ model WorkspaceEntitlement {
 
   @@unique([workspaceId, featureKey])
   @@index([stripeCustomerId])
+  @@index([bigcommerceCustomerId])
+  @@index([bigcommerceCustomerEmail])
 }
 
 enum WorkspaceRole {

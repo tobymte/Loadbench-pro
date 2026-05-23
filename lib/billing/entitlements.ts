@@ -20,6 +20,8 @@ export type EntitlementSummary = {
   cancelAtPeriodEnd: boolean;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+  bigcommerceOrderId: string | null;
+  bigcommerceCustomerId: string | null;
 };
 
 const INACTIVE_SUMMARY: EntitlementSummary = {
@@ -29,6 +31,8 @@ const INACTIVE_SUMMARY: EntitlementSummary = {
   cancelAtPeriodEnd: false,
   stripeCustomerId: null,
   stripeSubscriptionId: null,
+  bigcommerceOrderId: null,
+  bigcommerceCustomerId: null,
 };
 
 export function toSummary(
@@ -42,6 +46,10 @@ export function toSummary(
     cancelAtPeriodEnd: e.cancelAtPeriodEnd,
     stripeCustomerId: e.stripeCustomerId,
     stripeSubscriptionId: e.stripeSubscriptionId,
+    bigcommerceOrderId: e.bigcommerceOrderId,
+    bigcommerceCustomerId: e.bigcommerceCustomerId
+      ? String(e.bigcommerceCustomerId)
+      : null,
   };
 }
 

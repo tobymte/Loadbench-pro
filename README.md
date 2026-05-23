@@ -83,14 +83,18 @@ Copy `.env.example` to `.env.local`. Never commit real secrets.
 
 ---
 
-## Premium access via Stripe
+## Premium access via BigCommerce
 
 LoadBench Pro gates the **advanced pressure-modeling workspace** behind a
-recurring Stripe subscription. The velocity-only validation sandbox at
-`/simulation-sandbox` remains accessible without a subscription; what paid
-access unlocks is the full `/pressure-modeling` test bench (model-version
-records, validation-record review, load-readiness selection, expanded
-solver-input data capture).
+purchase processed by your existing BigCommerce store. The velocity-only
+validation sandbox at `/simulation-sandbox` remains accessible without a
+purchase; what paid access unlocks is the full `/pressure-modeling` test
+bench (model-version records, validation-record review, load-readiness
+selection, expanded solver-input data capture).
+
+Payment details are collected on BigCommerce's hosted "redirected
+checkout". This server only creates a cart and redirects the user — card
+numbers never reach LoadBench Pro.
 
 > Premium access is **infrastructure only**. It does **not** grant load
 > recommendations, pressure predictions, or safe/unsafe verdicts. All
@@ -100,66 +104,107 @@ solver-input data capture).
 
 ### Required environment variables
 
-| Variable                                | Required for billing | Notes |
-| --------------------------------------- | -------------------- | ----- |
-| `STRIPE_SECRET_KEY`                     | yes                  | Server-side Stripe secret (`sk_test_…` / `sk_live_…`). |
-| `STRIPE_WEBHOOK_SECRET`                 | yes                  | Signing secret for the `/api/billing/webhook` endpoint. |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`    | optional             | Reserved for future client-side Stripe.js usage. |
-| `STRIPE_PRESSURE_MODELING_PRICE_ID`     | yes                  | Stripe Price id (`price_…`) for the recurring subscription. |
-| `NEXT_PUBLIC_APP_URL`                   | yes                  | Base URL used to build Checkout success / cancel / portal return URLs. |
+| Variable                              | Required for billing | Notes |
+| ------------------------------------- | -------------------- | ----- |
+| `BIGCOMMERCE_STORE_HASH`              | yes                  | Store hash from Settings → API accounts. |
+| `BIGCOMMERCE_ACCESS_TOKEN`            | yes                  | API account token with `Carts: modify`, `Checkouts: modify`, `Orders: read-only`. |
+| `BIGCOMMERCE_PRESSURE_PRODUCT_ID`     | yes                  | Numeric product id of the digital "Pressure Modeling Access" product. |
+| `BIGCOMMERCE_CHANNEL_ID`              | optional             | Sales channel id. Blank → default storefront. |
+| `BIGCOMMERCE_WEBHOOK_SECRET`          | recommended          | HMAC-SHA256 secret used to sign webhook bodies. |
+| `BIGCOMMERCE_CLIENT_SECRET`           | optional             | Alternative env var name for the webhook secret. |
+| `NEXT_PUBLIC_APP_URL`                 | yes                  | Base URL of this app (used for paywall return links). |
 
-### Creating the Stripe product / price
+### BigCommerce dashboard setup
 
-1. Sign in to <https://dashboard.stripe.com>.
-2. **Products → Add product**. Name it e.g. *LoadBench Pro — Pressure
-   Modeling*. Add a **recurring** price (monthly or annual).
-3. Copy the resulting **Price** id (starts with `price_`) into
-   `STRIPE_PRESSURE_MODELING_PRICE_ID`.
-4. Under **Developers → API keys**, copy the **Secret key** into
-   `STRIPE_SECRET_KEY`.
+1. **Create the digital product**.
+   - In your BigCommerce control panel: **Products → Add**.
+   - Name it e.g. *LoadBench Pro — Pressure Modeling Access*.
+   - Set type to **Digital** and disable shipping.
+   - Price is whatever you choose. Save.
+   - Note the numeric Product ID (visible in the URL when editing the
+     product — `/manage/products/123` → `123`). Paste into
+     `BIGCOMMERCE_PRESSURE_PRODUCT_ID`.
 
-### Configuring the webhook
+2. **Create an API account / store-level access token**.
+   - **Settings → API accounts → Create API account → Store API
+     account**.
+   - Grant these scopes:
+     - **Carts**: modify
+     - **Checkouts**: modify
+     - **Orders**: read-only
+     - **Information & Settings**: read-only
+   - Save and copy:
+     - the **store hash** (from the API path) → `BIGCOMMERCE_STORE_HASH`
+     - the **access token** → `BIGCOMMERCE_ACCESS_TOKEN`
 
-The webhook endpoint is `POST /api/billing/webhook` and must receive these
-events:
+3. **Configure the webhook**.
+   - The webhook endpoint is `POST /api/billing/bigcommerce/webhook`.
+   - Create webhooks for these scopes:
+     - `store/order/created`
+     - `store/order/updated`
+     - `store/order/statusUpdated`
+     - `store/order/transaction/created`
+   - Set the destination to
+     `https://<your-domain>/api/billing/bigcommerce/webhook`.
+   - If you set a signing secret on the webhook, copy it into
+     `BIGCOMMERCE_WEBHOOK_SECRET` so the handler can verify signatures.
 
-- `checkout.session.completed`
-- `customer.subscription.created`
-- `customer.subscription.updated`
-- `customer.subscription.deleted`
+4. **Set env vars locally and in Vercel**.
+   - **Local**: copy `.env.example` to `.env.local` and fill in the
+     `BIGCOMMERCE_*` and `NEXT_PUBLIC_APP_URL` values.
+   - **Vercel**: Project Settings → Environment Variables → add the same
+     keys under Production (and Preview if desired).
 
-**Local development** (with the Stripe CLI):
+5. **Run the migration**.
+   ```bash
+   npm run prisma:migrate -- --name bigcommerce_entitlement_fields
+   # or, in CI / production:
+   npm run prisma:deploy
+   ```
 
-```bash
-stripe login
-stripe listen --forward-to localhost:3000/api/billing/webhook
-# Copy the printed whsec_… into STRIPE_WEBHOOK_SECRET in .env.local
+6. **Test the flow**.
+   - From `/pressure-modeling` or `/simulation-sandbox`, click
+     **Unlock with BigCommerce Checkout**.
+   - You will be redirected to BigCommerce's hosted checkout. Complete a
+     test purchase (BigCommerce sandbox or a real low-priced sale, your
+     choice).
+   - Once BigCommerce posts the order webhook, the workspace's
+     `WorkspaceEntitlement` row for `pressure_modeling` is set to
+     `ACTIVE` and the premium UI unlocks on next page load.
+
+### Customer → workspace matching
+
+The webhook matches BigCommerce orders to LoadBench workspaces in this
+order:
+
+1. By BigCommerce order id (idempotent retries).
+2. By the cart id the LoadBench checkout route persisted on the
+   `WorkspaceEntitlement` row when it created the cart.
+3. By **billing email** — if the BigCommerce shopper's billing email
+   exactly matches the LoadBench `User.email`, the access is granted to
+   that user's earliest workspace.
+
+If none of those match, the order is logged and dropped. To unlock access
+manually after a mis-matched order, run a one-off SQL update (or use
+Prisma Studio) — there is intentionally no public unlock endpoint:
+
+```sql
+UPDATE "WorkspaceEntitlement"
+   SET status = 'ACTIVE',
+       "bigcommerceOrderId" = '<order id from BigCommerce>'
+ WHERE "workspaceId" = '<workspace id>'
+   AND "featureKey"  = 'pressure_modeling';
 ```
-
-Trigger a test event:
-
-```bash
-stripe trigger checkout.session.completed
-```
-
-**Production / Vercel**:
-
-1. In the Stripe dashboard go to **Developers → Webhooks → Add endpoint**.
-2. URL: `https://<your-domain>/api/billing/webhook`.
-3. Select the four events listed above.
-4. Copy the endpoint's **Signing secret** into the Vercel project's
-   `STRIPE_WEBHOOK_SECRET` environment variable (Production scope).
-5. Also set `STRIPE_SECRET_KEY`, `STRIPE_PRESSURE_MODELING_PRICE_ID`,
-   `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (optional), and `NEXT_PUBLIC_APP_URL`
-   in Vercel.
 
 ### Routes
 
-| Route                          | Method | Purpose                                       |
-| ------------------------------ | ------ | --------------------------------------------- |
-| `/api/billing/checkout`        | POST   | Creates a Stripe Checkout session and 303-redirects the caller. |
-| `/api/billing/portal`          | POST   | Opens the Stripe Billing Portal for the workspace's customer. |
-| `/api/billing/webhook`         | POST   | Stripe-signed webhook. Updates `WorkspaceEntitlement`. |
+| Route                                   | Method | Purpose                                       |
+| --------------------------------------- | ------ | --------------------------------------------- |
+| `/api/billing/bigcommerce/checkout`     | POST   | Creates a BigCommerce cart and 303-redirects to the hosted checkout. |
+| `/api/billing/bigcommerce/webhook`      | POST   | BigCommerce-signed webhook. Updates `WorkspaceEntitlement` on paid orders. |
+| `/api/billing/checkout` (legacy Stripe) | POST   | Retained for stores still on Stripe; inactive unless `STRIPE_*` vars are set. |
+| `/api/billing/portal` (legacy Stripe)   | POST   | Stripe billing portal. Inactive unless `STRIPE_*` vars are set. |
+| `/api/billing/webhook` (legacy Stripe)  | POST   | Stripe webhook. Inactive unless `STRIPE_*` vars are set. |
 
 `WorkspaceEntitlement` (in `prisma/schema.prisma`) is the single source of
 truth for whether a workspace has unlocked a given feature key (currently

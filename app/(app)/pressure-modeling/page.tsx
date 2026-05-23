@@ -10,7 +10,7 @@ import { PressureValidationRecordForm } from '@/components/forms/PressureValidat
 import { LoadReadinessSelector } from '@/components/forms/LoadReadinessSelector';
 import { PaywallNotice } from '@/components/billing/PaywallNotice';
 import { FEATURE_KEYS, getEntitlement } from '@/lib/billing/entitlements';
-import { isStripeConfigured } from '@/lib/billing/stripe';
+import { isBigCommerceConfigured } from '@/lib/billing/bigcommerce';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,7 +72,7 @@ export default async function PressureModelingTestBenchPage() {
     ctx.workspaceId,
     FEATURE_KEYS.PRESSURE_MODELING,
   );
-  const stripeConfigured = isStripeConfigured();
+  const bigcommerceConfigured = isBigCommerceConfigured();
 
   if (!entitlement.hasAccess) {
     return (
@@ -101,7 +101,7 @@ export default async function PressureModelingTestBenchPage() {
           </div>
           <PaywallNotice
             entitlement={entitlement}
-            stripeConfigured={stripeConfigured}
+            bigcommerceConfigured={bigcommerceConfigured}
             featureBullets={[
               'Pressure-modeling test bench: structured notes, model-version records, and load-readiness review surfaces.',
               'Validation-record bookkeeping that a future expert-reviewed internal-ballistics model would have to pass before it could ever be enabled.',
