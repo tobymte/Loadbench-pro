@@ -42,6 +42,9 @@ export function ComponentForm() {
       bulletBc: numberOrNull(fd.get('bulletBc')),
       burnRateLabel: stringOrNull(fd.get('burnRateLabel')),
       lotNumber: stringOrNull(fd.get('lotNumber')),
+      quantityOnHand: numberOrNullAllowZero(fd.get('quantityOnHand')),
+      unit: stringOrNull(fd.get('unit')),
+      lowStockThreshold: numberOrNullAllowZero(fd.get('lowStockThreshold')),
       notes: stringOrNull(fd.get('notes')),
       archived: fd.get('archived') === 'on',
     };
@@ -181,6 +184,32 @@ export function ComponentForm() {
               placeholder={kind === 'POWDER' ? 'e.g. H4350' : 'powder only'}
               issues={issuesFor('burnRateLabel')}
             />
+            <Field
+              label="Quantity on hand"
+              name="quantityOnHand"
+              type="number"
+              step="0.01"
+              min="0"
+              inputMode="decimal"
+              placeholder="optional"
+              issues={issuesFor('quantityOnHand')}
+            />
+            <Field
+              label="Unit"
+              name="unit"
+              placeholder={kind === 'POWDER' ? 'lb or gr' : 'ct'}
+              issues={issuesFor('unit')}
+            />
+            <Field
+              label="Low-stock threshold"
+              name="lowStockThreshold"
+              type="number"
+              step="0.01"
+              min="0"
+              inputMode="decimal"
+              placeholder="optional"
+              issues={issuesFor('lowStockThreshold')}
+            />
           </div>
 
           <div>
@@ -230,6 +259,14 @@ function numberOrNull(v: FormDataEntryValue | null): number | null {
   if (s === '') return null;
   const n = Number(s);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function numberOrNullAllowZero(v: FormDataEntryValue | null): number | null {
+  if (v === null) return null;
+  const s = v.toString().trim();
+  if (s === '') return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 function stringOrNull(v: FormDataEntryValue | null): string | null {

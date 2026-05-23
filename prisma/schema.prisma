@@ -122,6 +122,11 @@ model Component {
   burnRateLabel  String?      // user-entered, e.g. "H4350"
   // shared
   lotNumber     String?
+  // Inventory recordkeeping fields. These are user-entered estimates only;
+  // LoadBench Pro does not infer or recommend physical stock levels.
+  quantityOnHand     Float?
+  unit               String?  // e.g. "ct" (bullets/primers/cases), "lb" or "gr" (powder)
+  lowStockThreshold  Float?
   notes         String?
   archived      Boolean       @default(false)
   createdAt     DateTime      @default(now())

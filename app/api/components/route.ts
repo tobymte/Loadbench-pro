@@ -17,6 +17,9 @@ const componentInput = z.object({
   bulletBc: z.number().positive().optional().nullable(),
   burnRateLabel: z.string().max(60).optional().nullable(),
   lotNumber: z.string().max(60).optional().nullable(),
+  quantityOnHand: z.number().min(0).optional().nullable(),
+  unit: z.string().max(20).optional().nullable(),
+  lowStockThreshold: z.number().min(0).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
   archived: z.boolean().optional(),
 });

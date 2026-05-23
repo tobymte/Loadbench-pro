@@ -1,10 +1,16 @@
+import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader } from '@/components/ui/Card';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { ComponentForm } from '@/components/forms/ComponentForm';
 import { prisma } from '@/lib/db/prisma';
 import { getWorkspaceContext } from '@/lib/auth/workspace';
+import {
+  estimateUsage,
+  estimateRemaining,
+  isLowStock,
+} from '@/lib/analysis/componentUsage';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,18 +19,43 @@ export default async function ComponentsPage() {
   const rows = await prisma.component.findMany({
     where: { workspaceId: ctx.workspaceId },
     orderBy: [{ kind: 'asc' }, { manufacturer: 'asc' }, { model: 'asc' }],
-    select: {
-      id: true,
-      kind: true,
-      manufacturer: true,
-      model: true,
-      bulletWeightGr: true,
-      bulletBc: true,
-      burnRateLabel: true,
-      lotNumber: true,
-      archived: true,
+    include: {
+      bulletLoads: {
+        select: { id: true, chargeGr: true, sessions: { select: { shotsFired: true } } },
+      },
+      powderLoads: {
+        select: { id: true, chargeGr: true, sessions: { select: { shotsFired: true } } },
+      },
+      primerLoads: {
+        select: { id: true, chargeGr: true, sessions: { select: { shotsFired: true } } },
+      },
+      caseLoads: {
+        select: { id: true, chargeGr: true, sessions: { select: { shotsFired: true } } },
+      },
     },
   });
+
+  const enriched = rows.map((r) => {
+    const loads =
+      r.kind === 'BULLET'
+        ? r.bulletLoads
+        : r.kind === 'POWDER'
+          ? r.powderLoads
+          : r.kind === 'PRIMER'
+            ? r.primerLoads
+            : r.caseLoads;
+    const usage = estimateUsage(r.kind, loads);
+    const remaining = estimateRemaining(
+      r.kind,
+      r.quantityOnHand,
+      r.unit,
+      usage,
+    );
+    const low = isLowStock(r.quantityOnHand, r.lowStockThreshold);
+    return { row: r, usage, remaining, low, linkedLoads: loads.length };
+  });
+
+  const lowStockCount = enriched.filter((e) => e.low && !e.row.archived).length;
 
   return (
     <>
@@ -34,10 +65,108 @@ export default async function ComponentsPage() {
 
         <Card>
           <CardHeader
-            title="Component inventory"
-            description="Track each lot of each component. Lot numbers matter — record them when you record a session. LoadBench Pro does not recommend substitutions or load data."
+            title="Inventory & usage caveats"
+            description="Stock and usage numbers below are recordkeeping only."
           />
-          {rows.length === 0 ? (
+          <CardBody>
+            <ul className="text-[12px] text-text-muted leading-relaxed list-disc pl-5 space-y-1">
+              <li>
+                Quantity on hand reflects what <em>you</em> entered. LoadBench Pro
+                does not scan, weigh, or audit physical inventory.
+              </li>
+              <li>
+                Estimated usage is derived from <code>shotsFired</code> and{' '}
+                <code>chargeGr</code> on the loads and range sessions you logged.
+                Sessions without these values are skipped.
+              </li>
+              <li>
+                Case usage is labeled as <strong>rounds loaded/fired</strong>, not
+                case life remaining. Brass life depends on pressure history,
+                annealing, and trim/sizing — none of which this app models.
+              </li>
+              <li>
+                LoadBench Pro does <strong>not</strong> recommend substitutions,
+                charge weights, or “safe load” claims.
+              </li>
+            </ul>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Usage & lot dashboard"
+            description="Recordkeeping summary across every component lot. Estimated remaining is shown only when units match (lb/gr for powder, ct for bullet/primer/case)."
+          />
+          {enriched.length === 0 ? (
+            <CardBody>
+              <p className="text-sm text-text-muted">
+                Add components above to see usage and lot estimates.
+              </p>
+            </CardBody>
+          ) : (
+            <table data-testid="components-usage-table">
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Kind</th>
+                  <th>Lot</th>
+                  <th className="text-right">Qty on hand</th>
+                  <th className="text-right">Est. used (from sessions)</th>
+                  <th className="text-right">Est. remaining</th>
+                  <th className="text-right">Linked loads</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enriched.map((e) => (
+                  <tr key={`usage-${e.row.id}`}>
+                    <td className="font-medium">
+                      <Link
+                        href={`/components/${e.row.id}`}
+                        className="hover:text-accent"
+                      >
+                        {e.row.manufacturer} {e.row.model}
+                      </Link>
+                    </td>
+                    <td>
+                      <Badge>{e.row.kind}</Badge>
+                    </td>
+                    <td className="text-text-muted">{e.row.lotNumber ?? '—'}</td>
+                    <td className="text-right tabular-nums">
+                      {e.row.quantityOnHand != null
+                        ? `${fmt(e.row.quantityOnHand)}${e.row.unit ? ' ' + e.row.unit : ''}`
+                        : '—'}
+                    </td>
+                    <td className="text-right tabular-nums text-text-muted">
+                      {formatUsageShort(e.row.kind, e.usage)}
+                    </td>
+                    <td className="text-right tabular-nums">
+                      {e.remaining
+                        ? `${fmt(e.remaining.value)} ${e.remaining.unit}`
+                        : '—'}
+                    </td>
+                    <td className="text-right tabular-nums text-text-muted">
+                      {e.linkedLoads}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Component inventory"
+            description="Track each lot of each component. Lot numbers matter — record them when you record a session."
+            actions={
+              lowStockCount > 0 ? (
+                <Badge tone="warning" data-testid="components-low-stock-badge">
+                  {lowStockCount} low stock
+                </Badge>
+              ) : undefined
+            }
+          />
+          {enriched.length === 0 ? (
             <div className="p-5">
               <EmptyState
                 title="No components recorded yet"
@@ -45,39 +174,60 @@ export default async function ComponentsPage() {
               />
             </div>
           ) : (
-            <table>
+            <table data-testid="components-inventory-table">
               <thead>
                 <tr>
                   <th>Kind</th>
                   <th>Manufacturer</th>
                   <th>Model</th>
                   <th>Lot</th>
-                  <th className="text-right">Weight (gr)</th>
-                  <th className="text-right">BC</th>
-                  <th>Burn rate</th>
+                  <th className="text-right">Qty on hand</th>
+                  <th className="text-right">Est. used</th>
+                  <th className="text-right">Loads</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
+                {enriched.map((e) => (
+                  <tr key={e.row.id} data-testid={`component-row-${e.row.id}`}>
                     <td>
-                      <Badge>{r.kind}</Badge>
+                      <Badge>{e.row.kind}</Badge>
                     </td>
-                    <td className="font-medium">{r.manufacturer}</td>
-                    <td>{r.model}</td>
-                    <td className="text-text-muted">{r.lotNumber ?? '—'}</td>
-                    <td className="text-right tabular-nums">
-                      {r.bulletWeightGr ?? '—'}
+                    <td className="font-medium">
+                      <Link
+                        href={`/components/${e.row.id}`}
+                        className="hover:text-accent"
+                      >
+                        {e.row.manufacturer}
+                      </Link>
                     </td>
+                    <td>
+                      <Link
+                        href={`/components/${e.row.id}`}
+                        className="hover:text-accent"
+                      >
+                        {e.row.model}
+                      </Link>
+                    </td>
+                    <td className="text-text-muted">{e.row.lotNumber ?? '—'}</td>
                     <td className="text-right tabular-nums">
-                      {r.bulletBc ?? '—'}
+                      {e.row.quantityOnHand != null ? (
+                        <span className={e.low ? 'text-warning' : ''}>
+                          {fmt(e.row.quantityOnHand)}
+                          {e.row.unit ? ` ${e.row.unit}` : ''}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="text-right tabular-nums text-text-muted">
+                      {formatUsageShort(e.row.kind, e.usage)}
+                    </td>
+                    <td className="text-right tabular-nums text-text-muted">
+                      {e.linkedLoads}
                     </td>
                     <td className="text-text-muted">
-                      {r.burnRateLabel ?? '—'}
-                    </td>
-                    <td className="text-text-muted">
-                      {r.archived ? 'Archived' : 'Active'}
+                      {e.row.archived ? 'Archived' : e.low ? 'Low' : 'Active'}
                     </td>
                   </tr>
                 ))}
@@ -88,4 +238,22 @@ export default async function ComponentsPage() {
       </div>
     </>
   );
+}
+
+function fmt(n: number): string {
+  if (Math.abs(n) >= 100) return n.toFixed(0);
+  if (Math.abs(n) >= 10) return n.toFixed(1);
+  return n.toFixed(2);
+}
+
+function formatUsageShort(
+  kind: 'BULLET' | 'POWDER' | 'PRIMER' | 'CASE',
+  usage: { shotsFired: number; powderLb: number | null },
+): string {
+  if (kind === 'POWDER') {
+    if (usage.powderLb == null || usage.powderLb === 0) return '—';
+    return `${fmt(usage.powderLb)} lb`;
+  }
+  if (usage.shotsFired === 0) return '—';
+  return `${usage.shotsFired} ct`;
 }
