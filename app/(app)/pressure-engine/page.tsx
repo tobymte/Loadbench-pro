@@ -9,10 +9,13 @@ import { FEATURE_KEYS, getEntitlement } from '@/lib/billing/entitlements';
 import { isBigCommerceConfigured } from '@/lib/billing/bigcommerce';
 import { PressureEngineRunForm } from '@/components/forms/PressureEngineRunForm';
 import {
-  PRESSURE_ENGINE_STATUS_LABEL,
   PRESSURE_PREDICTION_DISABLED_REASON,
   type PressureEngineRunStatus,
 } from '@/lib/validation/pressureEngine';
+import {
+  PressureEngineDashboard,
+  type DashboardEngineRunRow,
+} from '@/components/pressure/PressureEngineDashboard';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,24 +30,17 @@ export const dynamic = 'force-dynamic';
 //
 // There is no PSI value, no charge recommendation, no safe/unsafe verdict,
 // and no powder-substitution suggestion anywhere on this page or in the
-// route handlers it calls.
+// route handlers it calls. A reserved "Internal chamber pressure model
+// output" panel is rendered explicitly disabled with the gating policy.
 
-function statusTone(
-  s: PressureEngineRunStatus,
-): 'neutral' | 'accent' | 'success' | 'warning' | 'danger' {
-  switch (s) {
-    case 'DRAFT':
-      return 'neutral';
-    case 'INPUT_INCOMPLETE':
-      return 'warning';
-    case 'COMPLETED_NON_OPERATIONAL':
-      return 'success';
-    case 'REJECTED_BY_GUARDRAIL':
-      return 'danger';
-    case 'ARCHIVED':
-      return 'neutral';
-  }
-}
+const PREMIUM_DISPLAY_BULLETS = [
+  'Workspace overview: engine runs, model versions, validation records, range sessions.',
+  'Solver-input data-readiness checklist (cartridges, case capacity, bullet dimensions, powder metadata, barrel geometry, chrono calibration, published source coverage, validation records).',
+  'Model version / governance status table with blocked-outputs policy and validation notes.',
+  'Engine run history with per-run drill-down: input completeness, missing fields, velocity-only delta, source coverage, warnings, and the disabled prediction status.',
+  'Reserved "Internal chamber pressure model output" panel — intentionally disabled until validated lab model, SAAMI/CIP/manufacturer review, legal/safety review, and instrumented test validation are complete.',
+  'Hard server-side guardrails: forbidden-key rejection on inbound bodies, outbound stripping, and audit-stored `pressurePredictionStatus = "disabled"` on every run.',
+];
 
 function SetupNotice({ message }: { message: string }) {
   return (
@@ -134,17 +130,43 @@ export default async function PressureEnginePage() {
             </Link>
             .
           </div>
+
+          <Card data-testid="pressure-engine-locked-displays">
+            <CardHeader
+              title="What premium unlocks"
+              description="Display surfaces. Paid access never enables pressure predictions, charge advice, or safe/unsafe verdicts — those are governed by a separate validation pipeline that has not been completed."
+            />
+            <CardBody>
+              <ul className="list-disc pl-5 text-[13px] text-text space-y-1">
+                {PREMIUM_DISPLAY_BULLETS.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+            </CardBody>
+          </Card>
+
+          <Card
+            className="border-danger/40"
+            data-testid="pressure-engine-locked-reserved-output"
+          >
+            <CardHeader
+              title="Internal chamber pressure model output"
+              description="Reserved display slot. Even with premium access, this panel remains disabled until validated lab model, SAAMI / CIP / manufacturer review, legal / safety review, and instrumented test validation are all complete."
+              actions={<Badge tone="danger">Disabled</Badge>}
+            />
+            <CardBody>
+              <p className="text-[12px] text-text-muted leading-relaxed">
+                {PRESSURE_PREDICTION_DISABLED_REASON}
+              </p>
+            </CardBody>
+          </Card>
+
           <PaywallNotice
             entitlement={entitlement}
             bigcommerceConfigured={bigcommerceConfigured}
             title="Premium: pressure engine workspace"
             description="Paid access unlocks the controlled validation workspace and a future model slot. It does not turn LoadBench Pro into a load recommender — no PSI, peak pressure, charge advice, or safe/unsafe verdict is ever produced."
-            featureBullets={[
-              'Non-operational engine runner that records data completeness, missing fields, and velocity-only deltas for audit.',
-              'Model governance fields (governance status, blocked-outputs policy, validation notes) on each candidate pressure model version.',
-              'Engine run history / audit view for input completeness and velocity comparisons over time.',
-              'Hard server-side guardrails reject any request that includes predictedPressurePsi, recommendedCharge, safe/unsafe, powderSubstitution, or related forbidden keys.',
-            ]}
+            featureBullets={PREMIUM_DISPLAY_BULLETS}
           />
         </div>
       </>
@@ -157,8 +179,34 @@ export default async function PressureEnginePage() {
   if ('error' in queries) {
     return <SetupNotice message={queries.error} />;
   }
-  const { modelVersions, loads, rangeSessions, validationRecords, engineRuns } =
-    queries;
+  const {
+    modelVersions,
+    loads,
+    rangeSessions,
+    validationRecords,
+    engineRuns,
+    counts,
+  } = queries;
+
+  const dashboardRuns: DashboardEngineRunRow[] = engineRuns.map((r) => {
+    const outputs = parseOutputs(r.outputsJson);
+    return {
+      id: r.id,
+      createdAt: r.createdAt,
+      status: r.status as PressureEngineRunStatus,
+      pressurePredictionStatus: r.pressurePredictionStatus,
+      velocityDeltaFps: r.velocityDeltaFps,
+      velocityDeltaPct: r.velocityDeltaPct,
+      modelName: r.modelVersion?.name ?? null,
+      loadName: r.load?.name ?? null,
+      rangeSessionDate: r.rangeSession?.date ?? null,
+      validationLabel: r.validationRecord?.referenceLabel ?? null,
+      dataCompleteness: outputs?.dataCompleteness ?? null,
+      missingFields: outputs?.missingFields ?? [],
+      inputConsistencyWarnings: outputs?.inputConsistencyWarnings ?? [],
+      sourceCoverage: outputs?.sourceCoverage ?? null,
+    };
+  });
 
   return (
     <>
@@ -209,6 +257,19 @@ export default async function PressureEnginePage() {
           </p>
         </div>
 
+        <PressureEngineDashboard
+          summary={counts}
+          runs={dashboardRuns}
+          modelVersions={modelVersions.map((m) => ({
+            id: m.id,
+            name: m.name,
+            status: m.status,
+            governanceStatus: m.governanceStatus,
+            blockedOutputsPolicy: m.blockedOutputsPolicy,
+            validationNotes: m.validationNotes,
+          }))}
+        />
+
         <Card>
           <CardHeader
             title="Run the engine (non-operational)"
@@ -239,165 +300,6 @@ export default async function PressureEnginePage() {
         </Card>
 
         <Card>
-          <CardHeader
-            title="Model governance"
-            description="Each candidate pressure model version records a governance status, blocked-outputs policy, and validation notes. These are documentation — the engine never executes a model."
-          />
-          <CardBody>
-            {modelVersions.length === 0 ? (
-              <p
-                className="text-[12px] text-text-muted"
-                data-testid="pressure-engine-no-model-versions"
-              >
-                No model versions recorded yet. Create one on the{' '}
-                <Link
-                  href="/pressure-modeling"
-                  className="text-accent hover:text-accent-hover"
-                >
-                  pressure modeling test bench
-                </Link>
-                .
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table data-testid="pressure-engine-model-governance-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Review status</th>
-                      <th>Governance</th>
-                      <th>Blocked outputs policy</th>
-                      <th>Validation notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modelVersions.map((m) => (
-                      <tr key={m.id}>
-                        <td className="text-text">{m.name}</td>
-                        <td>
-                          <Badge tone="neutral">{m.status}</Badge>
-                        </td>
-                        <td className="text-text-muted">
-                          {m.governanceStatus ?? '—'}
-                        </td>
-                        <td className="text-text-muted text-[12px]">
-                          {m.blockedOutputsPolicy ?? '—'}
-                        </td>
-                        <td className="text-text-muted text-[12px]">
-                          {m.validationNotes ?? '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="mt-2 text-[11px] text-text-faint">
-                  Governance status is documentation only. Engine runs remain
-                  non-operational regardless of the value here.
-                </p>
-              </div>
-            )}
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Engine run history"
-            description="Audit / history view: input completeness, source coverage, and velocity-only comparisons over time. PSI / pressure / charge outputs are intentionally absent from every row."
-            actions={<Badge tone="neutral">Audit-only</Badge>}
-          />
-          <CardBody>
-            {engineRuns.length === 0 ? (
-              <p
-                className="text-[12px] text-text-muted"
-                data-testid="pressure-engine-history-empty"
-              >
-                No engine runs recorded yet.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table data-testid="pressure-engine-history-table">
-                  <thead>
-                    <tr>
-                      <th>When</th>
-                      <th>Status</th>
-                      <th>Prediction</th>
-                      <th>Model</th>
-                      <th>Load</th>
-                      <th>Range session</th>
-                      <th>Reference</th>
-                      <th>Velocity Δ</th>
-                      <th>Completeness</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {engineRuns.map((r) => {
-                      const outputs = parseOutputs(r.outputsJson);
-                      return (
-                        <tr key={r.id}>
-                          <td className="text-text-faint">
-                            {new Date(r.createdAt).toLocaleString()}
-                          </td>
-                          <td>
-                            <Badge
-                              tone={statusTone(
-                                r.status as PressureEngineRunStatus,
-                              )}
-                            >
-                              {PRESSURE_ENGINE_STATUS_LABEL[
-                                r.status as PressureEngineRunStatus
-                              ]}
-                            </Badge>
-                          </td>
-                          <td>
-                            <code className="text-[11px] text-accent">
-                              {r.pressurePredictionStatus}
-                            </code>
-                          </td>
-                          <td className="text-text-muted">
-                            {r.modelVersion?.name ?? '—'}
-                          </td>
-                          <td className="text-text-muted">
-                            {r.load?.name ?? '—'}
-                          </td>
-                          <td className="text-text-muted">
-                            {r.rangeSession
-                              ? new Date(
-                                  r.rangeSession.date,
-                                ).toLocaleDateString()
-                              : '—'}
-                          </td>
-                          <td className="text-text-muted">
-                            {r.validationRecord?.referenceLabel ?? '—'}
-                          </td>
-                          <td className="text-text-muted">
-                            {r.velocityDeltaFps != null
-                              ? `${r.velocityDeltaFps >= 0 ? '+' : ''}${r.velocityDeltaFps.toFixed(1)} fps`
-                              : '—'}
-                          </td>
-                          <td className="text-text-muted">
-                            {outputs?.dataCompleteness != null
-                              ? `${(outputs.dataCompleteness * 100).toFixed(0)}%`
-                              : '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <p className="mt-2 text-[11px] text-text-faint">
-                  Every row in this history carries{' '}
-                  <code className="text-accent">
-                    pressurePredictionStatus = &quot;disabled&quot;
-                  </code>
-                  . This audit log exists so future reviewers can confirm no
-                  run ever produced a pressure prediction or charge advice.
-                </p>
-              </div>
-            )}
-          </CardBody>
-        </Card>
-
-        <Card>
           <CardBody>
             <p className="text-[11px] text-text-faint leading-relaxed">
               {PRESSURE_PREDICTION_DISABLED_REASON}
@@ -411,6 +313,16 @@ export default async function PressureEnginePage() {
 
 type ParsedOutputs = {
   dataCompleteness?: number;
+  missingFields?: string[];
+  inputConsistencyWarnings?: string[];
+  sourceCoverage?: {
+    hasLinkedLoad: boolean;
+    hasModelVersion: boolean;
+    hasReferenceVelocity: boolean;
+    hasObservedVelocity: boolean;
+    hasReferencePressure: boolean;
+    hasRangeSession: boolean;
+  };
 };
 
 function parseOutputs(raw: string | null): ParsedOutputs | null {
@@ -429,6 +341,22 @@ async function loadPressureEngineData(workspaceId: string) {
     rangeSessions,
     validationRecords,
     engineRuns,
+    cartridgeCount,
+    componentCount,
+    rifleCount,
+    sourceCount,
+    rangeSessionCount,
+    validationRecordCount,
+    modelVersionCount,
+    loadCount,
+    caseCapacityCount,
+    bulletDimensionCount,
+    powderMetadataCount,
+    barrelGeometryCount,
+    chronoCalibrationCount,
+    publishedRowsVerifiedCount,
+    publishedRowsTotalCount,
+    engineRunsCount,
   ] = await Promise.all([
     prisma.pressureModelVersion.findMany({
       where: { workspaceId },
@@ -479,6 +407,51 @@ async function loadPressureEngineData(workspaceId: string) {
         validationRecord: { select: { id: true, referenceLabel: true } },
       },
     }),
+    prisma.cartridge.count({ where: { workspaceId } }),
+    prisma.component.count({ where: { workspaceId } }),
+    prisma.rifle.count({ where: { workspaceId } }),
+    prisma.source.count({ where: { workspaceId } }),
+    prisma.rangeSession.count({ where: { workspaceId } }),
+    prisma.pressureValidationRecord.count({ where: { workspaceId } }),
+    prisma.pressureModelVersion.count({ where: { workspaceId } }),
+    prisma.load.count({ where: { workspaceId } }),
+    prisma.caseCapacityMeasurement.count({ where: { workspaceId } }),
+    prisma.bulletDimensionRecord.count({ where: { workspaceId } }),
+    prisma.powderMetadataRecord.count({ where: { workspaceId } }),
+    prisma.barrelGeometryRecord.count({ where: { workspaceId } }),
+    prisma.chronoCalibrationRecord.count({ where: { workspaceId } }),
+    prisma.publishedLoadRowDraft.count({
+      where: { workspaceId, status: 'VERIFIED' },
+    }),
+    prisma.publishedLoadRowDraft.count({ where: { workspaceId } }),
+    prisma.pressureEngineRun.count({ where: { workspaceId } }),
   ]);
-  return { modelVersions, loads, rangeSessions, validationRecords, engineRuns };
+
+  const counts = {
+    loads: loadCount,
+    cartridges: cartridgeCount,
+    components: componentCount,
+    rifles: rifleCount,
+    sources: sourceCount,
+    rangeSessions: rangeSessionCount,
+    validationRecords: validationRecordCount,
+    modelVersions: modelVersionCount,
+    caseCapacityMeasurements: caseCapacityCount,
+    bulletDimensionRecords: bulletDimensionCount,
+    powderMetadataRecords: powderMetadataCount,
+    barrelGeometryRecords: barrelGeometryCount,
+    chronoCalibrationRecords: chronoCalibrationCount,
+    publishedRowsVerified: publishedRowsVerifiedCount,
+    publishedRowsTotal: publishedRowsTotalCount,
+    engineRuns: engineRunsCount,
+  };
+
+  return {
+    modelVersions,
+    loads,
+    rangeSessions,
+    validationRecords,
+    engineRuns,
+    counts,
+  };
 }
