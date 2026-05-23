@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { prisma } from '@/lib/db/prisma';
 import { getWorkspaceContext } from '@/lib/auth/workspace';
@@ -171,7 +172,21 @@ export default async function PressureEngineNewRunPage() {
     <>
       <Topbar
         title="Pressure engine · New run"
-        actions={<Badge tone="warning">Non-operational</Badge>}
+        actions={
+          <>
+            <Link href="/pressure-engine/setup">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                data-testid="pressure-engine-new-wizard-link"
+              >
+                Setup wizard
+              </Button>
+            </Link>
+            <Badge tone="warning">Non-operational</Badge>
+          </>
+        }
       />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
         <div

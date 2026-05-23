@@ -128,11 +128,40 @@ It verifies that `findForbiddenKeys` catches every documented key
 (top-level, nested-object, nested-array, case-insensitive variants) and
 that `stripForbiddenKeys` drops them.
 
+### Setup wizard workflow
+
+`/pressure-engine/setup` is a premium-gated readiness checklist for users
+about to record their first (or next) validation run. It performs no
+pressure math and renders no PSI, charge advice, or safe/unsafe verdict.
+For each required and important input it shows present/missing status, why
+the data matters, and a button to the existing entry page:
+
+1. Cartridge defined (`/cartridges`).
+2. Verified published reference row (`/published-data-review`).
+3. Load created (`/loads`, `/loads/new`).
+4. Rifle and barrel geometry (`/rifles`, `/solver-inputs`).
+5. Case capacity measurement (`/solver-inputs`).
+6. Bullet dimensions (`/solver-inputs`).
+7. Powder metadata (`/solver-inputs`).
+8. Chrono calibration (`/solver-inputs`).
+9. Observed chrono / range session (`/sessions`).
+10. Pressure validation reference record (`/pressure-modeling`).
+
+The page renders an overall readiness score, a required-only readiness
+score, and a single **Start validation run →** CTA that is only enabled
+when every required step is ready. The CTA links to
+`/pressure-engine/new` — where runs still record only data completeness,
+missing fields, source coverage, velocity-only delta, and
+`pressurePredictionStatus = "disabled"`. Entry points to the wizard live in
+the topbar of `/pressure-engine` and `/pressure-engine/new`.
+
 ### Routes
 
 | Route                              | Method | Purpose                                                                                  |
 | ---------------------------------- | ------ | ---------------------------------------------------------------------------------------- |
 | `/pressure-engine`                 | GET    | Premium-gated workspace UI (paywall when no entitlement).                                |
+| `/pressure-engine/setup`           | GET    | Premium-gated setup wizard — readiness checklist for validation runs; renders no math.   |
+| `/pressure-engine/new`             | GET    | Premium-gated run builder. Records non-operational runs only.                            |
 | `/api/pressure-engine/runs`        | POST   | Record a non-operational engine run; rejects forbidden keys with 400.                    |
 | `/api/pressure-engine/runs`        | GET    | List recent engine runs for the audit / history view.                                    |
 | `/api/pressure-engine/smoke`       | GET    | In-process guardrail smoke check.                                                        |

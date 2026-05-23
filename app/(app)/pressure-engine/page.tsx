@@ -215,6 +215,16 @@ export default async function PressureEnginePage() {
         title="Pressure engine"
         actions={
           <>
+            <Link href="/pressure-engine/setup">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                data-testid="pressure-engine-setup-wizard-button"
+              >
+                Setup wizard
+              </Button>
+            </Link>
             <Link href="/pressure-engine/new">
               <Button
                 type="button"
@@ -267,7 +277,16 @@ export default async function PressureEnginePage() {
             >
               pressure modeling test bench
             </Link>{' '}
-            for validation infrastructure.
+            for validation infrastructure. New to the workspace? Start with
+            the{' '}
+            <Link
+              href="/pressure-engine/setup"
+              className="text-accent hover:text-accent-hover"
+              data-testid="pressure-engine-setup-wizard-link"
+            >
+              setup wizard
+            </Link>
+            .
           </p>
         </div>
 
