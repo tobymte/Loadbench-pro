@@ -38,8 +38,10 @@ export default async function SourcesPage() {
           {rows.length === 0 ? (
             <div className="p-5">
               <EmptyState
+                tone="accent"
                 title="No sources yet"
-                description="Record the manuals and manufacturer data sheets you cite. A load with a charge weight must reference one of these."
+                description="Record the manuals and manufacturer data sheets you cite. A load with a charge weight must reference one of these — this is your audit trail back to the published reference."
+                testid="sources-empty"
               />
             </div>
           ) : (

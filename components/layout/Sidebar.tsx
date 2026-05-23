@@ -6,22 +6,22 @@ import { cn } from '@/lib/utils';
 
 const NAV: Array<{
   group: string;
-  items: Array<{ href: string; label: string; hint?: string }>;
+  items: Array<{ href: string; label: string; hint?: string; title?: string }>;
 }> = [
   {
     group: 'Workspace',
     items: [
-      { href: '/dashboard', label: 'Dashboard' },
-      { href: '/notebook', label: 'Notebook' },
+      { href: '/dashboard', label: 'Dashboard', hint: 'Start here' },
+      { href: '/notebook', label: 'Notebook & printables', title: 'Printable load and component cards' },
     ],
   },
   {
     group: 'Library',
     items: [
+      { href: '/sources', label: 'Sources', hint: 'Citations', title: 'Published references you cite when recording a load' },
       { href: '/cartridges', label: 'Cartridges' },
-      { href: '/components', label: 'Components' },
+      { href: '/components', label: 'Components · inventory', title: 'Bullets, powders, primers, cases by lot' },
       { href: '/rifles', label: 'Rifles' },
-      { href: '/sources', label: 'Sources' },
       { href: '/loads', label: 'Loads' },
       { href: '/sessions', label: 'Range sessions' },
     ],
@@ -29,23 +29,35 @@ const NAV: Array<{
   {
     group: 'Tools',
     items: [
-      { href: '/compare', label: 'Compare loads' },
-      { href: '/ballistics', label: 'Ballistics' },
-      { href: '/chrono-import', label: 'Chrono import' },
-      { href: '/pressure-modeling', label: 'Pressure modeling', hint: 'Experimental' },
-      { href: '/pressure-engine', label: 'Pressure engine', hint: 'Non-operational' },
-      { href: '/simulation-sandbox', label: 'Simulation sandbox', hint: 'Non-operational' },
-      { href: '/solver-inputs', label: 'Solver inputs', hint: 'Data capture' },
-      { href: '/published-data-review', label: 'Published-data review', hint: 'User-verified' },
-      { href: '/data-tools', label: 'Data tools' },
+      { href: '/compare', label: 'Compare loads', title: 'Filterable side-by-side comparison of observed session data' },
+      { href: '/ballistics', label: 'Ballistics estimate', title: 'Educational G1 trajectory from your inputs' },
+      { href: '/chrono-import', label: 'Chrono import', title: 'Paste a chronograph CSV into a new range session' },
+      { href: '/published-data-review', label: 'Published-data review', hint: 'User-verified', title: 'Stage and verify published rows before citing them on a load' },
+      { href: '/solver-inputs', label: 'Solver inputs', hint: 'Data capture', title: 'Capture data inputs used by the pressure-engine workspace' },
+    ],
+  },
+  {
+    group: 'Pressure engine',
+    items: [
+      { href: '/pressure-engine', label: 'Pressure engine', hint: 'Premium', title: 'Controlled validation workspace — pressure prediction disabled' },
+      { href: '/pressure-engine/setup', label: 'Setup wizard', title: 'Readiness checklist before starting a validation run' },
+      { href: '/pressure-engine/new', label: 'New run', title: 'Run builder — non-operational, no PSI or charge advice' },
+      { href: '/pressure-modeling', label: 'Test bench', hint: 'Experimental', title: 'Pressure modeling validation infrastructure' },
+      { href: '/simulation-sandbox', label: 'Simulation sandbox', hint: 'Non-operational', title: 'Scenario sandbox — produces no pressure or charge output' },
+    ],
+  },
+  {
+    group: 'Account',
+    items: [
+      { href: '/data-tools', label: 'Data tools', title: 'Workspace export and bulk operations' },
       { href: '/settings', label: 'Settings' },
-      { href: '/safety', label: 'Safety', hint: 'Required reading' },
+      { href: '/safety', label: 'Safety policy', hint: 'Required', title: 'Required reading before recording any load' },
     ],
   },
   {
     group: 'Admin',
     items: [
-      { href: '/admin/entitlements', label: 'Entitlements', hint: 'Operator' },
+      { href: '/admin/entitlements', label: 'Entitlements', hint: 'Operator', title: 'Manage premium entitlements per workspace' },
     ],
   },
 ];
@@ -100,6 +112,8 @@ export function Sidebar() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      title={item.title ?? item.label}
+                      data-testid={`nav-${item.href}`}
                       className={cn(
                         'flex items-center justify-between px-5 py-1.5 text-sm border-l-2',
                         active
@@ -107,9 +121,11 @@ export function Sidebar() {
                           : 'text-text-muted hover:text-text border-transparent hover:bg-bg-alt/60',
                       )}
                     >
-                      <span>{item.label}</span>
+                      <span className="truncate">{item.label}</span>
                       {item.hint && (
-                        <span className="text-[10px] text-accent">{item.hint}</span>
+                        <span className="text-[10px] text-accent shrink-0 ml-2">
+                          {item.hint}
+                        </span>
                       )}
                     </Link>
                   </li>

@@ -36,8 +36,10 @@ export default async function CartridgesPage() {
           {rows.length === 0 ? (
             <div className="p-5">
               <EmptyState
+                tone="accent"
                 title="No cartridges yet"
-                description="Add the cartridges you reload for. LoadBench Pro uses these as reference data when you record a load."
+                description="Add the cartridges you reload for, with SAAMI/CIP designation, bullet diameter, case capacity, and published max pressure. Loads and components reference these."
+                testid="cartridges-empty"
               />
             </div>
           ) : (

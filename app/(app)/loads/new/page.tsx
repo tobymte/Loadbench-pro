@@ -1,4 +1,8 @@
+import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadForm, LoadFormOption, LoadFormOptions } from '@/components/forms/LoadForm';
 import { prisma } from '@/lib/db/prisma';
 import { getWorkspaceContext } from '@/lib/auth/workspace';
@@ -68,11 +72,54 @@ export default async function NewLoadPage() {
     })),
   };
 
+  const missing: string[] = [];
+  if (cartridges.length === 0) missing.push('cartridge');
+  if (sources.length === 0) missing.push('source');
+  const hasBullet = options.bullets.length > 0;
+  const hasPowder = options.powders.length > 0;
+  if (!hasBullet) missing.push('bullet component');
+  if (!hasPowder) missing.push('powder component');
+
   return (
     <>
       <Topbar title="New load" />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-4">
+          <Breadcrumbs
+            items={[
+              { href: '/dashboard', label: 'Dashboard' },
+              { href: '/loads', label: 'Loads' },
+              { label: 'New load' },
+            ]}
+          />
+          {missing.length > 0 && (
+            <EmptyState
+              tone="warning"
+              title="A few prerequisites are missing"
+              description={`Loads need at least one cartridge, a cited source, and bullet/powder components. Currently missing: ${missing.join(', ')}. You can still draft a load without a charge, but a charge will only save with a citation.`}
+              action={
+                cartridges.length === 0 ? (
+                  <Link href="/cartridges">
+                    <Button>Add a cartridge</Button>
+                  </Link>
+                ) : sources.length === 0 ? (
+                  <Link href="/sources">
+                    <Button>Add a source</Button>
+                  </Link>
+                ) : (
+                  <Link href="/components">
+                    <Button>Add components</Button>
+                  </Link>
+                )
+              }
+              secondaryAction={
+                <Link href="/dashboard">
+                  <Button variant="secondary">Back to dashboard</Button>
+                </Link>
+              }
+              testid="loads-new-prereq-missing"
+            />
+          )}
           <LoadForm options={options} />
         </div>
       </div>

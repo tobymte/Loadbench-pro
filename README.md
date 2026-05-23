@@ -39,6 +39,50 @@ npm run prisma:migrate -- --name init
 npm run dev
 ```
 
+### Beginner local-development checklist
+
+If you are new to the project, work through these in order. Each step is a
+real check — don't skip ahead if the previous one is failing.
+
+1. **Node + npm installed.** Run `node -v` (Node 18+ is fine).
+2. **Postgres available.** Local Postgres, Neon, Supabase, or Railway all
+   work. You just need a connection string.
+3. **`.env.local` exists.** Copy `.env.example` and set `DATABASE_URL`. For
+   Neon/Supabase also set `DIRECT_URL`.
+4. **Prisma client generated.** `npm run prisma:generate`.
+5. **Database migrated.** On a fresh database run
+   `npm run prisma:migrate -- --name init`. If you are coming back to an
+   existing database, `npx prisma migrate deploy` is the right call.
+6. **Auth decision.** Leave `LOADBENCH_DISABLE_AUTH=true` in `.env.local`
+   while you explore. Flip to `false` only once Clerk keys are wired.
+7. **Start the dev server.** `npm run dev`. Visit
+   <http://localhost:3000/dashboard>.
+
+If the dashboard shows a **"Workspace not ready yet"** card, the message
+text tells you which check failed. The usual fixes are steps 3 – 5 above.
+
+### Recommended in-app setup path
+
+Once the dev server is running, the dashboard's **Recommended setup path**
+walks you through this. The order matters because each step references the
+previous one.
+
+1. **Cite a published source** at `/sources` — a manual, manufacturer PDF,
+   or data sheet you will reference when you record a load.
+2. **Add the cartridges you reload for** at `/cartridges`.
+3. **Stock bullets, powders, primers, and cases** at `/components`. Record
+   each lot separately — lot numbers carry through to sessions.
+4. **Add at least one rifle** at `/rifles`.
+5. **Record your first load** at `/loads/new`. A charge will only save if
+   it is at or below the published max on the source you cited.
+6. **Log a range session** at `/sessions`, or paste a chronograph CSV at
+   `/chrono-import`.
+
+Premium users can then continue into the pressure-engine workspace via the
+**Setup wizard → Run builder → Run detail** flow described below. None of
+those screens produce a PSI value, charge recommendation, or safe/unsafe
+verdict — they are non-operational by design.
+
 Open <http://localhost:3000>. The landing page lives at `/`; the app shell lives under the `(app)` route group (`/dashboard`, `/cartridges`, `/components`, `/rifles`, `/sources`, `/loads`, `/loads/new`, `/loads/[id]`, `/sessions`, `/notebook`, `/compare`, `/ballistics`, `/chrono-import`, `/pressure-modeling`, `/pressure-engine`, `/simulation-sandbox`, `/solver-inputs`, `/published-data-review`, `/data-tools`, `/settings`). The required-reading safety page is at `/safety`.
 
 ### Tools

@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/Button';
 import { SessionForm } from '@/components/forms/SessionForm';
 import { prisma } from '@/lib/db/prisma';
 import { getWorkspaceContext } from '@/lib/auth/workspace';
@@ -36,7 +38,16 @@ export default async function SessionsPage() {
 
   return (
     <>
-      <Topbar title="Range sessions" />
+      <Topbar
+        title="Range sessions"
+        actions={
+          <Link href="/chrono-import">
+            <Button size="sm" variant="secondary">
+              Import chrono CSV
+            </Button>
+          </Link>
+        }
+      />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
         <SessionForm
           options={{
@@ -53,7 +64,9 @@ export default async function SessionsPage() {
           <CardBody>
             {analysis.length === 0 ? (
               <p className="text-sm text-text-muted">
-                Link sessions to loads to see per-load summaries here.
+                No per-load summaries yet. Link sessions to a load using the{' '}
+                <strong className="text-text">Load</strong> field on each
+                session, and summaries will appear here.
               </p>
             ) : (
               <table data-testid="analysis-table">
@@ -104,8 +117,10 @@ export default async function SessionsPage() {
           {sessions.length === 0 ? (
             <div className="p-5">
               <EmptyState
+                tone="accent"
                 title="No sessions logged"
-                description="Log a session above to track velocity, group size, and conditions."
+                description="Log a session above to track velocity, group size, and conditions. Have a chronograph CSV? Import a whole string at once."
+                testid="sessions-empty"
               />
             </div>
           ) : (

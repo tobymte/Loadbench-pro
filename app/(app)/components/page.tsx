@@ -100,7 +100,9 @@ export default async function ComponentsPage() {
           {enriched.length === 0 ? (
             <CardBody>
               <p className="text-sm text-text-muted">
-                Add components above to see usage and lot estimates.
+                Add components above to see usage and lot estimates here.
+                Estimated usage is derived only from sessions you have already
+                logged.
               </p>
             </CardBody>
           ) : (
@@ -169,8 +171,10 @@ export default async function ComponentsPage() {
           {enriched.length === 0 ? (
             <div className="p-5">
               <EmptyState
+                tone="accent"
                 title="No components recorded yet"
-                description="Start by adding the bullets, powders, primers, and cases you have on hand."
+                description="Start by adding the bullets, powders, primers, and cases you have on hand. Record each lot separately — lot numbers carry through to sessions and printables."
+                testid="components-empty"
               />
             </div>
           ) : (

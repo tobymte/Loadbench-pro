@@ -44,8 +44,10 @@ export default async function RiflesPage() {
           {rifles.length === 0 ? (
             <div className="p-5">
               <EmptyState
+                tone="accent"
                 title="No rifles yet"
-                description="Add a rifle profile to associate range sessions and loads with it."
+                description="Add a rifle profile so range sessions and loads can be tagged to a specific barrel. Barrel length, twist, and zero help downstream filters and printables."
+                testid="rifles-empty"
               />
             </div>
           ) : (

@@ -41,6 +41,7 @@ export default async function LoadsPage() {
           {rows.length === 0 ? (
             <div className="p-5">
               <EmptyState
+                tone="accent"
                 title="No loads recorded yet"
                 description="Record a load to start your notebook. Charges cannot be saved without a cited published source and your safety acknowledgement."
                 action={
@@ -48,6 +49,12 @@ export default async function LoadsPage() {
                     <Button>New load</Button>
                   </Link>
                 }
+                secondaryAction={
+                  <Link href="/sources">
+                    <Button variant="secondary">Manage sources</Button>
+                  </Link>
+                }
+                testid="loads-empty"
               />
             </div>
           ) : (

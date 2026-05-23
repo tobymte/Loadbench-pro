@@ -11,12 +11,13 @@ export function SafetyBanner() {
           !
         </span>
         <span className="text-text-muted">
-          LoadBench Pro is a personal reloading notebook. It does not suggest charges
-          and cannot judge the safety of a load.
+          <strong className="text-text font-semibold">Notebook · not a load engine.</strong>{' '}
+          LoadBench Pro records what you load and the source you cite. It will
+          never suggest a charge or rate the safety of a load.
         </span>
         <Link
           href="/safety"
-          className="ml-auto text-accent hover:text-accent-hover underline-offset-2 hover:underline"
+          className="ml-auto text-accent hover:text-accent-hover underline-offset-2 hover:underline whitespace-nowrap"
         >
           Read safety policy →
         </Link>

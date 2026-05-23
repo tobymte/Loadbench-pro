@@ -9,6 +9,8 @@ import { PaywallNotice } from '@/components/billing/PaywallNotice';
 import { FEATURE_KEYS, getEntitlement } from '@/lib/billing/entitlements';
 import { isBigCommerceConfigured } from '@/lib/billing/bigcommerce';
 import { PRESSURE_PREDICTION_DISABLED_REASON } from '@/lib/validation/pressureEngine';
+import { PressureEngineSteps } from '@/components/pressure/PressureEngineSteps';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,6 +207,14 @@ export default async function PressureEngineSetupWizardPage() {
         }
       />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+        <Breadcrumbs
+          items={[
+            { href: '/dashboard', label: 'Dashboard' },
+            { href: '/pressure-engine', label: 'Pressure engine' },
+            { label: 'Setup wizard' },
+          ]}
+        />
+        <PressureEngineSteps active="setup" />
         <div
           className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[13px] text-text space-y-2"
           data-testid="pressure-engine-wizard-warning"

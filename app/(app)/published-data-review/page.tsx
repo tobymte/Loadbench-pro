@@ -192,12 +192,11 @@ export default async function PublishedDataReviewPage() {
             description="Containers that group staged rows under a single published source."
           />
           {imports.length === 0 ? (
-            <CardBody>
-              <p
-                className="text-[12px] text-text-muted"
-                data-testid="published-imports-empty"
-              >
-                No review sets yet. Stage one above to begin.
+            <CardBody data-testid="published-imports-empty">
+              <p className="text-[12px] text-text-muted">
+                No review sets yet. A review set groups staged rows under one
+                published source — start one above by giving it a title and
+                (optionally) linking a source.
               </p>
             </CardBody>
           ) : (
@@ -234,12 +233,11 @@ export default async function PublishedDataReviewPage() {
             description="Drafts, pending verifications, and verified rows. Rejected rows are removed from this list (kept in the database for audit). Verifying a row only marks it as user-reviewed; it does not create a Load."
           />
           {rows.length === 0 ? (
-            <CardBody>
-              <p
-                className="text-[12px] text-text-muted"
-                data-testid="published-rows-empty"
-              >
-                No staged rows yet.
+            <CardBody data-testid="published-rows-empty">
+              <p className="text-[12px] text-text-muted">
+                No staged rows yet. Use the batch entry form above to transcribe
+                a row from a published manual. You can then verify it against
+                the original document and cite the row on a load.
               </p>
             </CardBody>
           ) : (

@@ -18,6 +18,8 @@ import {
   type BuilderRangeSession,
   type BuilderValidationRecord,
 } from '@/components/forms/PressureEngineRunBuilder';
+import { PressureEngineSteps } from '@/components/pressure/PressureEngineSteps';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -189,6 +191,14 @@ export default async function PressureEngineNewRunPage() {
         }
       />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+        <Breadcrumbs
+          items={[
+            { href: '/dashboard', label: 'Dashboard' },
+            { href: '/pressure-engine', label: 'Pressure engine' },
+            { label: 'New run' },
+          ]}
+        />
+        <PressureEngineSteps active="new" />
         <div
           className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[13px] text-text space-y-2"
           data-testid="pressure-engine-new-warning"
