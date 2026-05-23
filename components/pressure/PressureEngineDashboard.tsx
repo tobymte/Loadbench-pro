@@ -535,6 +535,13 @@ export function PressureEngineDashboard({
                           }`
                         : 'Δ —'}
                     </span>
+                    <Link
+                      href={`/pressure-engine/${r.id}`}
+                      className="text-[11px] text-accent hover:text-accent-hover"
+                      data-testid={`engine-run-open-${r.id}`}
+                    >
+                      Open →
+                    </Link>
                   </summary>
                   <div className="border-t border-border px-3 py-3 space-y-3 text-[12px]">
                     <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">

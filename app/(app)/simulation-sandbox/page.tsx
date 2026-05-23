@@ -305,6 +305,34 @@ export default async function SimulationSandboxPage() {
           </CardBody>
         </Card>
 
+        {pressureModelingEntitlement.hasAccess && (
+          <Card data-testid="simulation-sandbox-pressure-engine-cta">
+            <CardHeader
+              title="Pressure engine run builder"
+              description="Premium: record a validation-only pressure engine run against the same selected records. The engine is non-operational — no PSI, charge recommendation, or safe/unsafe verdict is produced."
+              actions={<Badge tone="warning">Non-operational</Badge>}
+            />
+            <CardBody className="text-[12px] text-text-muted space-y-2">
+              <p>
+                The pressure engine builder records data completeness, missing
+                fields, velocity-only delta, source coverage, and guardrail
+                status. Every run carries{' '}
+                <code className="text-accent">
+                  pressurePredictionStatus = &quot;disabled&quot;
+                </code>
+                .
+              </p>
+              <Link
+                href="/pressure-engine/new"
+                className="inline-block text-accent hover:text-accent-hover"
+                data-testid="simulation-sandbox-open-pressure-engine-builder"
+              >
+                Open pressure engine run builder →
+              </Link>
+            </CardBody>
+          </Card>
+        )}
+
         <Card>
           <CardHeader
             title="Record a comparison run"

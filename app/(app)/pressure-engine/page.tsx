@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { prisma } from '@/lib/db/prisma';
 import { getWorkspaceContext } from '@/lib/auth/workspace';
 import { PaywallNotice } from '@/components/billing/PaywallNotice';
@@ -212,7 +213,20 @@ export default async function PressureEnginePage() {
     <>
       <Topbar
         title="Pressure engine"
-        actions={<Badge tone="warning">Non-operational</Badge>}
+        actions={
+          <>
+            <Link href="/pressure-engine/new">
+              <Button
+                type="button"
+                size="sm"
+                data-testid="pressure-engine-new-run-button"
+              >
+                + New run
+              </Button>
+            </Link>
+            <Badge tone="warning">Non-operational</Badge>
+          </>
+        }
       />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
         <div
@@ -274,7 +288,21 @@ export default async function PressureEnginePage() {
           <CardHeader
             title="Run the engine (non-operational)"
             description="Select a candidate model version, a load, and any chrono / reference observations. The engine records data completeness, missing fields, source coverage, input-consistency warnings, and a velocity-only delta. It does not produce a pressure estimate or charge advice."
-            actions={<Badge tone="warning">Acknowledgement required</Badge>}
+            actions={
+              <>
+                <Link href="/pressure-engine/new">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    data-testid="pressure-engine-open-builder"
+                  >
+                    Open run builder →
+                  </Button>
+                </Link>
+                <Badge tone="warning">Acknowledgement required</Badge>
+              </>
+            }
           />
           <CardBody>
             <PressureEngineRunForm
