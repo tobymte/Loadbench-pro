@@ -659,6 +659,11 @@ model SimulationRun {
   loadId              String?
   validationRecordId  String?
   rangeSessionId      String?
+  // Optional link to a verified PublishedLoadRowDraft. When set, the row's
+  // user-verified velocity / charge value can be used as the reference value
+  // for the comparison. Reference pressure on a published row, if any, is
+  // user-entered input from the cited document, never a computed prediction.
+  publishedRowId      String?
   status              SimulationRunStatus @default(DRAFT)
   // Comparison bookkeeping — velocity only. Pressure prediction is intentionally
   // absent. Reference pressure (if any) lives on the linked PressureValidationRecord
@@ -667,6 +672,16 @@ model SimulationRun {
   velocityDeltaPct    Float?
   toleranceFps        Float?
   tolerancePct        Float?
+  // JSON-encoded snapshot of inputs at the moment the run was created
+  // (selected model version, reference source, observed source, tolerance,
+  // any user-entered scalars). Stored as String for Postgres-provider
+  // portability, matching AuditEvent.payload / conditionsJson convention.
+  inputsSnapshotJson  String?
+  // JSON-encoded computed comparison metrics: velocity delta (fps/%), absolute
+  // value, within-tolerance booleans, range-session ES/SD echoed for display,
+  // residual vs reference, data-completeness score, coverage label. Strictly
+  // descriptive of user-entered inputs — no pressure prediction is encoded.
+  metricsJson         String?
   notes               String?
   reviewerNotes       String?
   acknowledgedExperimental Boolean        @default(false)
@@ -679,10 +694,12 @@ model SimulationRun {
   load              Load?                     @relation(fields: [loadId], references: [id], onDelete: SetNull)
   validationRecord  PressureValidationRecord? @relation(fields: [validationRecordId], references: [id], onDelete: SetNull)
   rangeSession      RangeSession?             @relation(fields: [rangeSessionId], references: [id], onDelete: SetNull)
+  publishedRow      PublishedLoadRowDraft?    @relation("SimulationPublishedRow", fields: [publishedRowId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status])
   @@index([modelVersionId])
   @@index([loadId])
+  @@index([publishedRowId])
 }
 
 // =============================================================================
@@ -761,10 +778,11 @@ model PublishedLoadRowDraft {
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
-  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  import    PublishedDataImport  @relation(fields: [importId], references: [id], onDelete: Cascade)
-  source    Source?              @relation(fields: [sourceId], references: [id], onDelete: SetNull)
-  loads     Load[]               @relation("LoadPublishedRow")
+  workspace      Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  import         PublishedDataImport  @relation(fields: [importId], references: [id], onDelete: Cascade)
+  source         Source?              @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  loads          Load[]               @relation("LoadPublishedRow")
+  simulationRuns SimulationRun[]      @relation("SimulationPublishedRow")
 
   @@index([workspaceId, status])
   @@index([importId])

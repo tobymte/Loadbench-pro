@@ -24,6 +24,9 @@ export type SimulationFormRangeSession = {
   id: string;
   date: string;
   avgVelocityFps: number | null;
+  esFps: number | null;
+  sdFps: number | null;
+  shotsFired: number | null;
   loadName: string | null;
 };
 
@@ -38,22 +41,32 @@ export type SimulationFormLoad = {
   name: string;
 };
 
+export type SimulationFormPublishedRow = {
+  id: string;
+  label: string;
+  velocityFps: number | null;
+  chargeGr: number | null;
+};
+
 export function SimulationRunForm({
   modelVersions,
   loads,
   validationRecords,
   rangeSessions,
+  publishedRows,
 }: {
   modelVersions: SimulationFormModelVersion[];
   loads: SimulationFormLoad[];
   validationRecords: SimulationFormValidationRecord[];
   rangeSessions: SimulationFormRangeSession[];
+  publishedRows: SimulationFormPublishedRow[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [validationRecordId, setValidationRecordId] = useState<string>('');
   const [rangeSessionId, setRangeSessionId] = useState<string>('');
+  const [publishedRowId, setPublishedRowId] = useState<string>('');
   const [toleranceFpsInput, setToleranceFpsInput] = useState<string>('');
   const [tolerancePctInput, setTolerancePctInput] = useState<string>('');
 
@@ -65,8 +78,15 @@ export function SimulationRunForm({
     () => rangeSessions.find((s) => s.id === rangeSessionId) ?? null,
     [rangeSessionId, rangeSessions],
   );
+  const selectedPublishedRow = useMemo(
+    () => publishedRows.find((r) => r.id === publishedRowId) ?? null,
+    [publishedRowId, publishedRows],
+  );
 
-  const referenceFps = selectedRecord?.referenceVelocityFps ?? null;
+  const referenceFps =
+    selectedRecord?.referenceVelocityFps ??
+    selectedPublishedRow?.velocityFps ??
+    null;
   const observedFps =
     selectedSession?.avgVelocityFps ?? selectedRecord?.measuredVelocityFps ?? null;
   const { deltaFps, deltaPct } = computeVelocityDelta(referenceFps, observedFps);
@@ -88,10 +108,10 @@ export function SimulationRunForm({
 
   const missingInputs = [
     { key: 'modelVersion', label: 'Placeholder model version', present: modelVersions.length > 0 },
-    { key: 'referenceVelocity', label: 'Reference velocity (fps) on validation record', present: referenceFps != null },
+    { key: 'referenceVelocity', label: 'Reference velocity (fps) from validation record or verified published row', present: referenceFps != null },
     { key: 'observedVelocity', label: 'Observed/measured velocity (fps) from chrono session or validation record', present: observedFps != null },
     { key: 'tolerance', label: 'Tolerance value (fps or %)', present: toleranceFps != null || tolerancePct != null },
-    { key: 'validationRecord', label: 'Linked validation record', present: !!validationRecordId },
+    { key: 'referenceLink', label: 'Linked validation record or verified published row', present: !!validationRecordId || !!publishedRowId },
   ];
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -105,6 +125,7 @@ export function SimulationRunForm({
       loadId: stringOrNull(fd.get('loadId')),
       validationRecordId: stringOrNull(fd.get('validationRecordId')),
       rangeSessionId: stringOrNull(fd.get('rangeSessionId')),
+      publishedRowId: stringOrNull(fd.get('publishedRowId')),
       status: ((fd.get('status') as string | null) ?? 'DRAFT') as SimulationRunStatus,
       toleranceFps: numberOrNull(fd.get('toleranceFps')),
       tolerancePct: numberOrNull(fd.get('tolerancePct')),
@@ -123,6 +144,7 @@ export function SimulationRunForm({
         form.reset();
         setValidationRecordId('');
         setRangeSessionId('');
+        setPublishedRowId('');
         setToleranceFpsInput('');
         setTolerancePctInput('');
         router.refresh();
@@ -269,6 +291,31 @@ export function SimulationRunForm({
               );
             })}
           </select>
+        </div>
+
+        <div className="md:col-span-2">
+          <label htmlFor="publishedRowId">
+            Verified published row (optional)
+          </label>
+          <select
+            id="publishedRowId"
+            name="publishedRowId"
+            value={publishedRowId}
+            onChange={(e) => setPublishedRowId(e.target.value)}
+            data-testid="simulation-published-row"
+          >
+            <option value="">— none —</option>
+            {publishedRows.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-text-faint">
+            Only user-verified published rows from the published-data review
+            surface are listed. Published row values are used as the reference
+            only when no validation record is selected.
+          </p>
         </div>
 
         <div>

@@ -7,10 +7,11 @@ import {
 } from '@/lib/auth/workspace';
 import {
   simulationRunInputSchema,
-  computeVelocityDelta,
+  computeSimulationMetrics,
   hasForbiddenKeys,
   ACKNOWLEDGEMENT_REQUIRED_MESSAGE,
   FORBIDDEN_KEYS_MESSAGE,
+  type SimulationInputsSnapshot,
 } from '@/lib/validation/simulationRun';
 
 export const dynamic = 'force-dynamic';
@@ -33,7 +34,25 @@ export async function GET() {
         },
       },
       rangeSession: {
-        select: { id: true, date: true, avgVelocityFps: true },
+        select: {
+          id: true,
+          date: true,
+          avgVelocityFps: true,
+          esFps: true,
+          sdFps: true,
+          shotsFired: true,
+        },
+      },
+      publishedRow: {
+        select: {
+          id: true,
+          bulletName: true,
+          powderName: true,
+          chargeGr: true,
+          velocityFps: true,
+          pageLabel: true,
+          status: true,
+        },
       },
     },
   });
@@ -93,7 +112,7 @@ export async function POST(req: NextRequest) {
   // Verify all referenced entities belong to this workspace.
   const modelVersion = await prisma.pressureModelVersion.findFirst({
     where: { id: data.modelVersionId, workspaceId: ctx.workspaceId },
-    select: { id: true },
+    select: { id: true, name: true, status: true },
   });
   if (!modelVersion) {
     return NextResponse.json(
@@ -111,11 +130,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let validationRecord: {
-    id: string;
-    referenceVelocityFps: number | null;
-    measuredVelocityFps: number | null;
-  } | null = null;
+  let validationRecord:
+    | {
+        id: string;
+        referenceLabel: string;
+        referenceVelocityFps: number | null;
+        measuredVelocityFps: number | null;
+        referencePressurePsi: number | null;
+      }
+    | null = null;
   if (data.validationRecordId) {
     validationRecord = await prisma.pressureValidationRecord.findFirst({
       where: {
@@ -124,8 +147,10 @@ export async function POST(req: NextRequest) {
       },
       select: {
         id: true,
+        referenceLabel: true,
         referenceVelocityFps: true,
         measuredVelocityFps: true,
+        referencePressurePsi: true,
       },
     });
     if (!validationRecord) {
@@ -146,14 +171,30 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let rangeSession: { id: string; avgVelocityFps: number | null } | null = null;
+  let rangeSession:
+    | {
+        id: string;
+        date: Date;
+        avgVelocityFps: number | null;
+        esFps: number | null;
+        sdFps: number | null;
+        shotsFired: number | null;
+      }
+    | null = null;
   if (data.rangeSessionId) {
     rangeSession = await prisma.rangeSession.findFirst({
       where: {
         id: data.rangeSessionId,
         workspaceId: ctx.workspaceId,
       },
-      select: { id: true, avgVelocityFps: true },
+      select: {
+        id: true,
+        date: true,
+        avgVelocityFps: true,
+        esFps: true,
+        sdFps: true,
+        shotsFired: true,
+      },
     });
     if (!rangeSession) {
       return NextResponse.json(
@@ -172,10 +213,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let load: { id: string; name: string } | null = null;
   if (data.loadId) {
-    const load = await prisma.load.findFirst({
+    load = await prisma.load.findFirst({
       where: { id: data.loadId, workspaceId: ctx.workspaceId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     if (!load) {
       return NextResponse.json(
@@ -194,15 +236,130 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let publishedRow:
+    | {
+        id: string;
+        bulletName: string | null;
+        powderName: string | null;
+        chargeGr: number | null;
+        velocityFps: number | null;
+        pageLabel: string | null;
+        status: 'DRAFT' | 'NEEDS_REVIEW' | 'VERIFIED' | 'REJECTED';
+      }
+    | null = null;
+  if (data.publishedRowId) {
+    publishedRow = await prisma.publishedLoadRowDraft.findFirst({
+      where: { id: data.publishedRowId, workspaceId: ctx.workspaceId },
+      select: {
+        id: true,
+        bulletName: true,
+        powderName: true,
+        chargeGr: true,
+        velocityFps: true,
+        pageLabel: true,
+        status: true,
+      },
+    });
+    if (!publishedRow) {
+      return NextResponse.json(
+        {
+          error: 'INVALID',
+          issues: [
+            {
+              path: ['publishedRowId'],
+              code: 'INVALID_SHAPE',
+              message: 'Referenced published row not found in this workspace.',
+            },
+          ],
+        },
+        { status: 400 },
+      );
+    }
+    if (publishedRow.status !== 'VERIFIED') {
+      return NextResponse.json(
+        {
+          error: 'INVALID',
+          issues: [
+            {
+              path: ['publishedRowId'],
+              code: 'INVALID_SHAPE',
+              message:
+                'Published row must be user-verified before it can drive a simulation comparison.',
+            },
+          ],
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   // Velocity-only delta bookkeeping. Reference comes from the validation
-  // record (user-entered published/lab value), observed comes from either
-  // the validation record's measured value or the range session avg.
-  const referenceFps = validationRecord?.referenceVelocityFps ?? null;
-  const observedFps =
-    rangeSession?.avgVelocityFps ??
-    validationRecord?.measuredVelocityFps ??
-    null;
-  const { deltaFps, deltaPct } = computeVelocityDelta(referenceFps, observedFps);
+  // record (user-entered published/lab value) or the verified published row.
+  // Observed comes from either the validation record's measured value or
+  // the range session avg.
+  const referenceFromValidation = validationRecord?.referenceVelocityFps ?? null;
+  const referenceFromPublishedRow = publishedRow?.velocityFps ?? null;
+  let referenceFps: number | null = null;
+  let referenceSource: SimulationInputsSnapshot['referenceSource'] = 'none';
+  if (referenceFromValidation != null) {
+    referenceFps = referenceFromValidation;
+    referenceSource = 'validation-record';
+  } else if (referenceFromPublishedRow != null) {
+    referenceFps = referenceFromPublishedRow;
+    referenceSource = 'published-row';
+  }
+
+  let observedFps: number | null = null;
+  let observedSource: SimulationInputsSnapshot['observedSource'] = 'none';
+  if (rangeSession?.avgVelocityFps != null) {
+    observedFps = rangeSession.avgVelocityFps;
+    observedSource = 'range-session';
+  } else if (validationRecord?.measuredVelocityFps != null) {
+    observedFps = validationRecord.measuredVelocityFps;
+    observedSource = 'validation-record-measured';
+  }
+
+  const metrics = computeSimulationMetrics({
+    referenceFps,
+    observedFps,
+    toleranceFps: data.toleranceFps ?? null,
+    tolerancePct: data.tolerancePct ?? null,
+    rangeSession: rangeSession
+      ? {
+          esFps: rangeSession.esFps,
+          sdFps: rangeSession.sdFps,
+          shotsFired: rangeSession.shotsFired,
+        }
+      : null,
+    hasLinkedEntity: !!(load || validationRecord || publishedRow || rangeSession),
+  });
+
+  const inputsSnapshot: SimulationInputsSnapshot = {
+    modelVersion: {
+      id: modelVersion.id,
+      name: modelVersion.name,
+      status: modelVersion.status,
+    },
+    load: load,
+    validationRecord: validationRecord,
+    rangeSession: rangeSession
+      ? {
+          id: rangeSession.id,
+          date: rangeSession.date.toISOString(),
+          avgVelocityFps: rangeSession.avgVelocityFps,
+          esFps: rangeSession.esFps,
+          sdFps: rangeSession.sdFps,
+          shotsFired: rangeSession.shotsFired,
+        }
+      : null,
+    publishedRow: publishedRow,
+    toleranceFps: data.toleranceFps ?? null,
+    tolerancePct: data.tolerancePct ?? null,
+    referenceFps,
+    referenceSource,
+    observedFps,
+    observedSource,
+  };
 
   const row = await prisma.simulationRun.create({
     data: {
@@ -211,11 +368,14 @@ export async function POST(req: NextRequest) {
       loadId: data.loadId ?? null,
       validationRecordId: data.validationRecordId ?? null,
       rangeSessionId: data.rangeSessionId ?? null,
+      publishedRowId: data.publishedRowId ?? null,
       status: data.status,
-      velocityDeltaFps: deltaFps,
-      velocityDeltaPct: deltaPct,
+      velocityDeltaFps: metrics.deltaFps,
+      velocityDeltaPct: metrics.deltaPct,
       toleranceFps: data.toleranceFps ?? null,
       tolerancePct: data.tolerancePct ?? null,
+      inputsSnapshotJson: JSON.stringify(inputsSnapshot),
+      metricsJson: JSON.stringify(metrics),
       notes: data.notes ?? null,
       reviewerNotes: data.reviewerNotes ?? null,
       acknowledgedExperimental: data.acknowledgedExperimental,
