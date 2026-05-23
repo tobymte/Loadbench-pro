@@ -4,6 +4,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { prisma } from '@/lib/db/prisma';
 import { getWorkspaceContext } from '@/lib/auth/workspace';
+import { getAdminContext } from '@/lib/auth/admin';
 import { solverReadinessChecklist } from '@/lib/analysis/pressureReadiness';
 import { PressureModelVersionForm } from '@/components/forms/PressureModelVersionForm';
 import { PressureValidationRecordForm } from '@/components/forms/PressureValidationRecordForm';
@@ -62,16 +63,158 @@ function checklistTone(
   return 'neutral';
 }
 
+function describeError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return 'Unknown error.';
+  }
+}
+
+function SetupNotice({
+  message,
+  isAdmin,
+}: {
+  message: string;
+  isAdmin: boolean;
+}) {
+  return (
+    <>
+      <Topbar
+        title="Pressure modeling test bench"
+        actions={<Badge tone="warning">Setup required</Badge>}
+      />
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+        <div
+          className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[13px] text-text space-y-2"
+          data-testid="pressure-modeling-setup-required"
+        >
+          <p>
+            <strong className="font-semibold">
+              Pressure modeling test bench is not ready yet.
+            </strong>{' '}
+            The experimental validation workspace could not be loaded.
+          </p>
+          <p className="text-[12px] text-text-muted">{message}</p>
+          <p className="text-[12px] text-text-muted">
+            Typical fixes: run{' '}
+            <code className="text-accent">npx prisma migrate deploy</code> then{' '}
+            <code className="text-accent">npx prisma generate</code>, and
+            confirm <code className="text-accent">DATABASE_URL</code> is set.
+            Nothing on this page computes pressure, recommends a charge, or
+            marks any load as safe or unsafe regardless of setup state.
+          </p>
+          <p className="text-[12px] text-text-muted">
+            See the{' '}
+            <Link
+              href="/safety"
+              className="text-accent hover:text-accent-hover"
+            >
+              safety policy
+            </Link>
+            {isAdmin && (
+              <>
+                {' '}
+                or visit{' '}
+                <Link
+                  href="/admin/entitlements"
+                  className="text-accent hover:text-accent-hover"
+                >
+                  admin entitlements
+                </Link>{' '}
+                to manage manual access
+              </>
+            )}
+            .
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function UnauthenticatedNotice() {
+  return (
+    <>
+      <Topbar
+        title="Pressure modeling test bench"
+        actions={<Badge tone="warning">Sign-in required</Badge>}
+      />
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+        <Card data-testid="pressure-modeling-unauthenticated">
+          <CardHeader
+            title="Sign in to use the pressure modeling test bench"
+            description="The experimental validation workspace is scoped to a signed-in workspace. Pressure prediction, charge advice, and safe/unsafe verdicts are not provided here regardless of sign-in state."
+          />
+          <CardBody className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/sign-in"
+                className="inline-flex items-center rounded border border-accent bg-accent px-3 py-1.5 text-[13px] text-bg hover:bg-accent-hover"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/sign-up"
+                className="inline-flex items-center rounded border border-border bg-bg px-3 py-1.5 text-[13px] text-text hover:bg-bg-alt"
+              >
+                Create account
+              </Link>
+            </div>
+            <p className="text-[12px] text-text-muted">
+              See the{' '}
+              <Link
+                href="/safety"
+                className="text-accent hover:text-accent-hover"
+              >
+                safety policy
+              </Link>
+              .
+            </p>
+          </CardBody>
+        </Card>
+      </div>
+    </>
+  );
+}
+
 export default async function PressureModelingTestBenchPage() {
-  const ctx = await getWorkspaceContext();
+  // Resolve admin context first so any error notice can offer the right
+  // links to operators without leaking admin status to other viewers.
+  const admin = await getAdminContext().catch(() => ({
+    isAdmin: false,
+    email: null,
+    viaLocalDevFallback: false,
+    reason: null as string | null,
+  }));
+
+  let ctx: Awaited<ReturnType<typeof getWorkspaceContext>>;
+  try {
+    ctx = await getWorkspaceContext();
+  } catch (e) {
+    const msg = describeError(e);
+    if (msg === 'UNAUTHENTICATED') {
+      return <UnauthenticatedNotice />;
+    }
+    return <SetupNotice message={msg} isAdmin={admin.isAdmin} />;
+  }
 
   // Premium gating. Until the workspace has an active entitlement for
   // pressure_modeling, render only the paywall + safety copy. The DB
   // queries below are intentionally not executed in the locked state.
-  const entitlement = await getEntitlement(
-    ctx.workspaceId,
-    FEATURE_KEYS.PRESSURE_MODELING,
-  );
+  let entitlement: Awaited<ReturnType<typeof getEntitlement>>;
+  try {
+    entitlement = await getEntitlement(
+      ctx.workspaceId,
+      FEATURE_KEYS.PRESSURE_MODELING,
+    );
+  } catch (e) {
+    return (
+      <SetupNotice message={describeError(e)} isAdmin={admin.isAdmin} />
+    );
+  }
+
   const bigcommerceConfigured = isBigCommerceConfigured();
 
   if (!entitlement.hasAccess) {
@@ -106,80 +249,60 @@ export default async function PressureModelingTestBenchPage() {
               'Pressure-modeling test bench: structured notes, model-version records, and load-readiness review surfaces.',
               'Validation-record bookkeeping that a future expert-reviewed internal-ballistics model would have to pass before it could ever be enabled.',
               'Expanded solver-input data capture surfaces for case capacity, bullet dimensions, powder metadata, barrel geometry, and chrono calibration.',
+              'Pressure engine workspace at /pressure-engine: run-history dashboard with a reserved (disabled) internal chamber pressure model output panel.',
             ]}
           />
+          <Card data-testid="pressure-modeling-locked-engine-link">
+            <CardHeader
+              title="Pressure engine workspace"
+              description="The main premium pressure workspace lives at /pressure-engine. Pressure prediction remains disabled there regardless of entitlement."
+            />
+            <CardBody>
+              <Link
+                href="/pressure-engine"
+                className="text-[13px] text-accent hover:text-accent-hover"
+                data-testid="link-pressure-engine"
+              >
+                Open pressure engine →
+              </Link>
+            </CardBody>
+          </Card>
+          {admin.isAdmin && (
+            <Card data-testid="pressure-modeling-admin-shortcut">
+              <CardHeader
+                title="Admin · Entitlements"
+                description="Manually grant or revoke pressure_modeling access while BigCommerce checkout is not configured. Manual entitlement never enables pressure prediction or load advice."
+              />
+              <CardBody>
+                <Link
+                  href="/admin/entitlements"
+                  className="text-[13px] text-accent hover:text-accent-hover"
+                  data-testid="link-admin-entitlements"
+                >
+                  Manage entitlements →
+                </Link>
+              </CardBody>
+            </Card>
+          )}
         </div>
       </>
     );
   }
 
-  const [
+  const queries = await loadPressureModelingData(ctx.workspaceId).catch(
+    (e: unknown) => ({ error: describeError(e) }) as const,
+  );
+  if ('error' in queries) {
+    return <SetupNotice message={queries.error} isAdmin={admin.isAdmin} />;
+  }
+  const {
     loads,
     sources,
     modelVersions,
     validationRecords,
-    caseCapacityCount,
-    bulletDimensionCount,
-    powderMetadataCount,
-    barrelGeometryCount,
-    chronoCalibrationCount,
+    solverInputCounts,
     recentSimulationRuns,
-  ] = await Promise.all([
-    prisma.load.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { updatedAt: 'desc' },
-      select: { id: true, name: true },
-    }),
-    prisma.source.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { title: 'asc' },
-      select: { id: true, title: true },
-    }),
-    prisma.pressureModelVersion.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { updatedAt: 'desc' },
-    }),
-    prisma.pressureValidationRecord.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        load: { select: { id: true, name: true } },
-        source: { select: { id: true, title: true } },
-        modelVersion: { select: { id: true, name: true } },
-      },
-    }),
-    prisma.caseCapacityMeasurement.count({
-      where: { workspaceId: ctx.workspaceId },
-    }),
-    prisma.bulletDimensionRecord.count({
-      where: { workspaceId: ctx.workspaceId },
-    }),
-    prisma.powderMetadataRecord.count({
-      where: { workspaceId: ctx.workspaceId },
-    }),
-    prisma.barrelGeometryRecord.count({
-      where: { workspaceId: ctx.workspaceId },
-    }),
-    prisma.chronoCalibrationRecord.count({
-      where: { workspaceId: ctx.workspaceId },
-    }),
-    prisma.simulationRun.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { updatedAt: 'desc' },
-      take: 5,
-      include: {
-        modelVersion: { select: { id: true, name: true } },
-      },
-    }),
-  ]);
-
-  const solverInputCounts = {
-    caseCapacity: caseCapacityCount,
-    bulletDimensions: bulletDimensionCount,
-    powderMetadata: powderMetadataCount,
-    barrelGeometry: barrelGeometryCount,
-    chronoCalibration: chronoCalibrationCount,
-  };
+  } = queries;
 
   const checklist = solverReadinessChecklist();
 
@@ -208,6 +331,22 @@ export default async function PressureModelingTestBenchPage() {
           </Link>
           .
         </div>
+
+        <Card data-testid="pressure-modeling-engine-link">
+          <CardHeader
+            title="Pressure engine workspace"
+            description="The pressure engine at /pressure-engine is the main premium workspace: run-history dashboard, governance-status table, and a reserved (disabled) internal chamber pressure model output panel. Pressure prediction remains disabled regardless of entitlement."
+            actions={
+              <Link
+                href="/pressure-engine"
+                className="text-[12px] text-accent hover:text-accent-hover"
+                data-testid="link-pressure-engine"
+              >
+                Open pressure engine →
+              </Link>
+            }
+          />
+        </Card>
 
         <Card>
           <CardHeader
@@ -366,9 +505,18 @@ export default async function PressureModelingTestBenchPage() {
           />
           <CardBody>
             {loads.length === 0 ? (
-              <p className="text-[12px] text-text-muted">
-                No loads in this workspace yet. Record a load first to assess
-                input completeness.
+              <p
+                className="text-[12px] text-text-muted"
+                data-testid="pressure-modeling-loads-empty"
+              >
+                No loads in this workspace yet.{' '}
+                <Link
+                  href="/loads"
+                  className="text-accent hover:text-accent-hover"
+                >
+                  Record a load
+                </Link>{' '}
+                first to assess input completeness.
               </p>
             ) : (
               <LoadReadinessSelector loads={loads} />
@@ -404,7 +552,10 @@ export default async function PressureModelingTestBenchPage() {
               <PressureModelVersionForm />
 
               {modelVersions.length === 0 ? (
-                <p className="text-[12px] text-text-muted">
+                <p
+                  className="text-[12px] text-text-muted"
+                  data-testid="pressure-model-versions-empty"
+                >
                   No model versions recorded yet.
                 </p>
               ) : (
@@ -504,6 +655,25 @@ export default async function PressureModelingTestBenchPage() {
           </CardBody>
         </Card>
 
+        {admin.isAdmin && (
+          <Card data-testid="pressure-modeling-admin-shortcut">
+            <CardHeader
+              title="Admin · Entitlements"
+              description="Manually grant or revoke pressure_modeling access. Manual entitlement never enables pressure prediction or load advice."
+              actions={<Badge tone="accent">Operator</Badge>}
+            />
+            <CardBody>
+              <Link
+                href="/admin/entitlements"
+                className="text-[13px] text-accent hover:text-accent-hover"
+                data-testid="link-admin-entitlements"
+              >
+                Manage entitlements →
+              </Link>
+            </CardBody>
+          </Card>
+        )}
+
         <Card>
           <CardBody>
             <p className="text-[11px] text-text-faint leading-relaxed">
@@ -518,4 +688,71 @@ export default async function PressureModelingTestBenchPage() {
       </div>
     </>
   );
+}
+
+async function loadPressureModelingData(workspaceId: string) {
+  const [
+    loads,
+    sources,
+    modelVersions,
+    validationRecords,
+    caseCapacityCount,
+    bulletDimensionCount,
+    powderMetadataCount,
+    barrelGeometryCount,
+    chronoCalibrationCount,
+    recentSimulationRuns,
+  ] = await Promise.all([
+    prisma.load.findMany({
+      where: { workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, name: true },
+    }),
+    prisma.source.findMany({
+      where: { workspaceId },
+      orderBy: { title: 'asc' },
+      select: { id: true, title: true },
+    }),
+    prisma.pressureModelVersion.findMany({
+      where: { workspaceId },
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.pressureValidationRecord.findMany({
+      where: { workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        load: { select: { id: true, name: true } },
+        source: { select: { id: true, title: true } },
+        modelVersion: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.caseCapacityMeasurement.count({ where: { workspaceId } }),
+    prisma.bulletDimensionRecord.count({ where: { workspaceId } }),
+    prisma.powderMetadataRecord.count({ where: { workspaceId } }),
+    prisma.barrelGeometryRecord.count({ where: { workspaceId } }),
+    prisma.chronoCalibrationRecord.count({ where: { workspaceId } }),
+    prisma.simulationRun.findMany({
+      where: { workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      take: 5,
+      include: {
+        modelVersion: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
+
+  return {
+    loads,
+    sources,
+    modelVersions,
+    validationRecords,
+    solverInputCounts: {
+      caseCapacity: caseCapacityCount,
+      bulletDimensions: bulletDimensionCount,
+      powderMetadata: powderMetadataCount,
+      barrelGeometry: barrelGeometryCount,
+      chronoCalibration: chronoCalibrationCount,
+    },
+    recentSimulationRuns,
+  };
 }
