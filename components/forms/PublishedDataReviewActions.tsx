@@ -177,8 +177,9 @@ export function VerifyRowControl({
             }}
             disabled={pending}
             data-testid={`row-verify-${id}-reject`}
+            title="Reject this row and remove it from the active review list."
           >
-            Reject
+            Reject &amp; remove
           </Button>
         )}
       </div>
@@ -201,8 +202,10 @@ export function VerifyRowControl({
               </span>
             </label>
           ) : (
-            <p className="leading-snug">
-              Reject this user-entered source row?
+            <p className="leading-snug" data-testid={`row-verify-${id}-reject-explain`}>
+              Reject this user-entered source row? It will be removed from
+              the active review list. The record is kept in the database
+              for audit only and will not appear on this page.
             </p>
           )}
           <textarea
@@ -225,7 +228,7 @@ export function VerifyRowControl({
                 ? 'Saving…'
                 : confirming === 'VERIFIED'
                 ? 'Confirm verified'
-                : 'Confirm reject'}
+                : 'Confirm reject & remove'}
             </Button>
             <Button
               type="button"

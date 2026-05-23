@@ -57,7 +57,10 @@ export default async function PublishedDataReviewPage() {
       },
     }),
     prisma.publishedLoadRowDraft.findMany({
-      where: { workspaceId: ctx.workspaceId },
+      // Rejected rows are hidden from the active review list. They are
+      // preserved in the database for audit/history but no longer appear
+      // here once a workspace member rejects them.
+      where: { workspaceId: ctx.workspaceId, status: { not: 'REJECTED' } },
       orderBy: [{ updatedAt: 'desc' }],
       take: 100,
       include: {
@@ -228,7 +231,7 @@ export default async function PublishedDataReviewPage() {
         <Card>
           <CardHeader
             title="Staged rows"
-            description="Drafts and pending verifications. Verifying a row only marks it as user-reviewed; it does not create a Load."
+            description="Drafts, pending verifications, and verified rows. Rejected rows are removed from this list (kept in the database for audit). Verifying a row only marks it as user-reviewed; it does not create a Load."
           />
           {rows.length === 0 ? (
             <CardBody>
