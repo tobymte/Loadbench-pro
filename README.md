@@ -39,7 +39,15 @@ npm run prisma:migrate -- --name init
 npm run dev
 ```
 
-Open <http://localhost:3000>. The landing page lives at `/`; the app shell lives under the `(app)` route group (`/dashboard`, `/cartridges`, `/components`, `/loads`, `/loads/new`, `/loads/[id]`, `/sessions`, `/notebook`, `/data-tools`, `/settings`). The required-reading safety page is at `/safety`.
+Open <http://localhost:3000>. The landing page lives at `/`; the app shell lives under the `(app)` route group (`/dashboard`, `/cartridges`, `/components`, `/rifles`, `/sources`, `/loads`, `/loads/new`, `/loads/[id]`, `/sessions`, `/notebook`, `/compare`, `/ballistics`, `/chrono-import`, `/data-tools`, `/settings`). The required-reading safety page is at `/safety`.
+
+### Tools
+
+| Route             | Purpose                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/compare`        | Filterable side-by-side load comparison from observed session data only. No safety or pressure validation.                                   |
+| `/chrono-import`  | Paste chronograph CSV and import it as a `RangeSession` with computed avg / ES / SD. Schema-compatible aggregate import only.                |
+| `/ballistics`     | Educational G1 external-ballistics trajectory estimate from user-entered muzzle velocity, weight, BC, zero, etc. Not a load engine.          |
 
 ---
 

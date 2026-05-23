@@ -29,6 +29,9 @@ const NAV: Array<{
   {
     group: 'Tools',
     items: [
+      { href: '/compare', label: 'Compare loads' },
+      { href: '/ballistics', label: 'Ballistics' },
+      { href: '/chrono-import', label: 'Chrono import' },
       { href: '/data-tools', label: 'Data tools' },
       { href: '/settings', label: 'Settings' },
       { href: '/safety', label: 'Safety', hint: 'Required reading' },
