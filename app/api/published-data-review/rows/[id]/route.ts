@@ -47,6 +47,26 @@ export async function PATCH(
     data.status !== 'VERIFIED' &&
     existing.status === 'VERIFIED';
 
+  // Verification requires an explicit acknowledgement that the caller has
+  // checked the transcription against the original published source. This is
+  // independent of the safety acknowledgement required to later create a Load.
+  if (becameVerified && data.verificationAcknowledged !== true) {
+    return NextResponse.json(
+      {
+        error: 'INVALID',
+        issues: [
+          {
+            path: ['verificationAcknowledged'],
+            code: 'VERIFICATION_ACK_REQUIRED',
+            message:
+              'Confirm "I verified this row against the original source." before marking it verified.',
+          },
+        ],
+      },
+      { status: 400 },
+    );
+  }
+
   const updated = await prisma.publishedLoadRowDraft.update({
     where: { id: existing.id },
     data: {

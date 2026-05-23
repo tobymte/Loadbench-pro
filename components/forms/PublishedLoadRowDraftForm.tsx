@@ -14,11 +14,13 @@ export function PublishedLoadRowDraftForm({
   cartridges,
   bullets,
   powders,
+  sources,
 }: {
   imports: Import[];
   cartridges: Option[];
   bullets: Option[];
   powders: Option[];
+  sources?: Option[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -34,6 +36,7 @@ export function PublishedLoadRowDraftForm({
 
     const body = {
       importId: (fd.get('importId') as string | null) ?? '',
+      sourceId: stringOrNull(fd.get('sourceId')),
       cartridgeId: stringOrNull(fd.get('cartridgeId')),
       bulletComponentId: stringOrNull(fd.get('bulletComponentId')),
       powderComponentId: stringOrNull(fd.get('powderComponentId')),
@@ -121,11 +124,17 @@ export function PublishedLoadRowDraftForm({
             name="pageLabel"
             type="text"
             placeholder="e.g. p. 2, 65gr table"
+            data-testid="published-row-page"
           />
         </div>
         <div>
           <label htmlFor="cartridgeId">Cartridge</label>
-          <select id="cartridgeId" name="cartridgeId" defaultValue="">
+          <select
+            id="cartridgeId"
+            name="cartridgeId"
+            defaultValue=""
+            data-testid="published-row-cartridge"
+          >
             <option value="">—</option>
             {cartridges.map((c) => (
               <option key={c.id} value={c.id}>
@@ -134,6 +143,24 @@ export function PublishedLoadRowDraftForm({
             ))}
           </select>
         </div>
+        {sources && sources.length > 0 && (
+          <div>
+            <label htmlFor="sourceId">Cited source (override import)</label>
+            <select
+              id="sourceId"
+              name="sourceId"
+              defaultValue=""
+              data-testid="published-row-source"
+            >
+              <option value="">— inherit from review set —</option>
+              {sources.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label htmlFor="bulletComponentId">Bullet (workspace)</label>
           <select
@@ -201,6 +228,7 @@ export function PublishedLoadRowDraftForm({
             step="0.01"
             inputMode="decimal"
             placeholder="transcribed from source"
+            data-testid="published-row-charge"
           />
         </div>
         <div>
@@ -211,6 +239,7 @@ export function PublishedLoadRowDraftForm({
             type="number"
             step="1"
             inputMode="numeric"
+            data-testid="published-row-velocity"
           />
         </div>
         <div>
@@ -283,8 +312,8 @@ export function PublishedLoadRowDraftForm({
           {pending ? 'Staging…' : 'Stage row for review'}
         </Button>
         <span className="text-[11px] text-text-faint">
-          Stages a draft for user verification. Not a recommendation. Not
-          authoritative load data.
+          Saves a user-entered source row draft for verification against the
+          original document. Not a recommended load.
         </span>
       </div>
     </form>

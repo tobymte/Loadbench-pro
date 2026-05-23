@@ -51,4 +51,22 @@ export const publishedLoadRowDraftUpdateSchema = z.object({
   bcG1: z.number().positive().max(2).optional().nullable(),
   bcG7: z.number().positive().max(2).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
+  // When the caller is transitioning the row to VERIFIED, they must explicitly
+  // confirm that they have checked the transcription against the original
+  // published document. The PATCH route rejects status=VERIFIED without this.
+  verificationAcknowledged: z.boolean().optional(),
+});
+
+// Schema for creating a Load draft from a VERIFIED row. The user must
+// explicitly acknowledge the safety disclaimer at the create action — we never
+// auto-inherit acknowledgement from the row verification step.
+export const createLoadDraftFromRowSchema = z.object({
+  safetyAcknowledged: z.literal(true, {
+    errorMap: () => ({
+      message:
+        'You must explicitly acknowledge the safety disclaimer before creating a load draft.',
+    }),
+  }),
+  name: z.string().min(1).max(120).optional(),
+  notes: z.string().max(4000).optional().nullable(),
 });

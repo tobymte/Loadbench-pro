@@ -80,6 +80,95 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // FK workspace scoping: any optional component / cartridge / source the
+  // caller provides must belong to this workspace. We don't want a manual
+  // row entry to be able to reference cross-workspace records.
+  const fkChecks: Promise<unknown>[] = [];
+  const fkErrors: Array<{ path: string[]; code: string; message: string }> = [];
+  if (data.sourceId) {
+    fkChecks.push(
+      prisma.source
+        .findFirst({
+          where: { id: data.sourceId, workspaceId: ctx.workspaceId },
+          select: { id: true },
+        })
+        .then((r) => {
+          if (!r)
+            fkErrors.push({
+              path: ['sourceId'],
+              code: 'INVALID_SHAPE',
+              message: 'Source not found in this workspace.',
+            });
+        }),
+    );
+  }
+  if (data.cartridgeId) {
+    fkChecks.push(
+      prisma.cartridge
+        .findFirst({
+          where: { id: data.cartridgeId, workspaceId: ctx.workspaceId },
+          select: { id: true },
+        })
+        .then((r) => {
+          if (!r)
+            fkErrors.push({
+              path: ['cartridgeId'],
+              code: 'INVALID_SHAPE',
+              message: 'Cartridge not found in this workspace.',
+            });
+        }),
+    );
+  }
+  if (data.bulletComponentId) {
+    fkChecks.push(
+      prisma.component
+        .findFirst({
+          where: {
+            id: data.bulletComponentId,
+            workspaceId: ctx.workspaceId,
+            kind: 'BULLET',
+          },
+          select: { id: true },
+        })
+        .then((r) => {
+          if (!r)
+            fkErrors.push({
+              path: ['bulletComponentId'],
+              code: 'INVALID_SHAPE',
+              message: 'Bullet component not found in this workspace.',
+            });
+        }),
+    );
+  }
+  if (data.powderComponentId) {
+    fkChecks.push(
+      prisma.component
+        .findFirst({
+          where: {
+            id: data.powderComponentId,
+            workspaceId: ctx.workspaceId,
+            kind: 'POWDER',
+          },
+          select: { id: true },
+        })
+        .then((r) => {
+          if (!r)
+            fkErrors.push({
+              path: ['powderComponentId'],
+              code: 'INVALID_SHAPE',
+              message: 'Powder component not found in this workspace.',
+            });
+        }),
+    );
+  }
+  await Promise.all(fkChecks);
+  if (fkErrors.length > 0) {
+    return NextResponse.json(
+      { error: 'INVALID', issues: fkErrors },
+      { status: 400 },
+    );
+  }
+
   const row = await prisma.publishedLoadRowDraft.create({
     data: {
       workspaceId: ctx.workspaceId,

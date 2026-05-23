@@ -7,6 +7,7 @@ import { getWorkspaceContext } from '@/lib/auth/workspace';
 import {
   HornadySetupButton,
   VerifyRowControl,
+  CreateLoadDraftFromRow,
 } from '@/components/forms/PublishedDataReviewActions';
 import { PublishedLoadRowDraftForm } from '@/components/forms/PublishedLoadRowDraftForm';
 
@@ -45,7 +46,7 @@ function statusTone(
 export default async function PublishedDataReviewPage() {
   const ctx = await getWorkspaceContext();
 
-  const [imports, rows, cartridges, bullets, powders] = await Promise.all([
+  const [imports, rows, cartridges, bullets, powders, sources] = await Promise.all([
     prisma.publishedDataImport.findMany({
       where: { workspaceId: ctx.workspaceId },
       orderBy: { updatedAt: 'desc' },
@@ -78,6 +79,11 @@ export default async function PublishedDataReviewPage() {
       orderBy: [{ manufacturer: 'asc' }, { model: 'asc' }],
       select: { id: true, manufacturer: true, model: true },
     }),
+    prisma.source.findMany({
+      where: { workspaceId: ctx.workspaceId },
+      orderBy: { title: 'asc' },
+      select: { id: true, title: true },
+    }),
   ]);
 
   return (
@@ -92,7 +98,8 @@ export default async function PublishedDataReviewPage() {
           data-testid="published-review-notice"
         >
           <strong className="font-semibold">
-            Staged rows are user-transcribed citations awaiting verification.
+            Manual entries are transcriptions. Verify against the original
+            source before creating a load draft.
           </strong>{' '}
           Copyrighted and safety-critical published data (e.g. manufacturer
           powder-charge tables) is never auto-imported into this app as
@@ -146,6 +153,7 @@ export default async function PublishedDataReviewPage() {
                 id: p.id,
                 label: `${p.manufacturer} ${p.model}`,
               }))}
+              sources={sources.map((s) => ({ id: s.id, label: s.title }))}
             />
           </CardBody>
         </Card>
@@ -262,15 +270,24 @@ export default async function PublishedDataReviewPage() {
                         <VerifyRowControl id={r.id} status={status} />
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="text-[11px] text-text-faint cursor-not-allowed"
-                          disabled
-                          data-testid={`published-row-${r.id}-create-load`}
-                          title="Verified rows can be cited on a Load via the normal Loads flow. Charge-bearing loads still require source + safety acknowledgement."
-                        >
-                          Use on Load…
-                        </button>
+                        {status === 'VERIFIED' ? (
+                          <CreateLoadDraftFromRow
+                            id={r.id}
+                            hasCartridge={r.cartridgeId != null}
+                            hasBullet={r.bulletComponentId != null}
+                            hasPowder={r.powderComponentId != null}
+                            hasSource={r.sourceId != null}
+                            hasCharge={r.chargeGr != null}
+                          />
+                        ) : (
+                          <span
+                            className="text-[11px] text-text-faint"
+                            data-testid={`published-row-${r.id}-create-load-disabled`}
+                            title="Only user-verified source rows can be used to create a load draft."
+                          >
+                            Verify first
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
