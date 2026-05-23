@@ -35,6 +35,7 @@ const NAV: Array<{
       { href: '/pressure-modeling', label: 'Pressure modeling', hint: 'Experimental' },
       { href: '/simulation-sandbox', label: 'Simulation sandbox', hint: 'Non-operational' },
       { href: '/solver-inputs', label: 'Solver inputs', hint: 'Data capture' },
+      { href: '/published-data-review', label: 'Published-data review', hint: 'User-verified' },
       { href: '/data-tools', label: 'Data tools' },
       { href: '/settings', label: 'Settings' },
       { href: '/safety', label: 'Safety', hint: 'Required reading' },
