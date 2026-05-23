@@ -42,6 +42,12 @@ const NAV: Array<{
       { href: '/safety', label: 'Safety', hint: 'Required reading' },
     ],
   },
+  {
+    group: 'Admin',
+    items: [
+      { href: '/admin/entitlements', label: 'Entitlements', hint: 'Operator' },
+    ],
+  },
 ];
 
 function Logo() {

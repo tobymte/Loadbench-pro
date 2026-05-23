@@ -299,6 +299,53 @@ truth for whether a workspace has unlocked a given feature key (currently
 expose `hasPremiumAccess(workspaceId, featureKey)` and
 `getEntitlement(...)` for use in route handlers and server components.
 
+### Manual entitlement (admin override)
+
+While BigCommerce is not yet configured, the app owner can grant or revoke
+`pressure_modeling` directly from `/admin/entitlements`. The page is gated
+by `LOADBENCH_ADMIN_EMAILS` and never bypasses the safety guardrails — a
+manual grant unlocks the **display scaffolding** only. Pressure prediction,
+charge recommendations, and safe/unsafe verdicts remain disabled
+regardless of entitlement state.
+
+1. Add a comma-separated list of admin emails to `.env.local` (and your
+   Vercel project's environment variables):
+
+   ```
+   LOADBENCH_ADMIN_EMAILS="owner@example.com,ops@example.com"
+   ```
+
+   The check is case-insensitive and matched against the authenticated
+   Clerk user's primary email. Leave the variable blank in production to
+   lock the admin UI for everyone.
+
+2. Restart the dev server (or redeploy on Vercel) so Next.js picks up the
+   new env var, then visit <http://localhost:3000/admin/entitlements> as
+   one of the configured admin accounts.
+
+3. Identify a workspace by id/slug or a user email (resolves to the user's
+   first workspace), enter an optional reason, and click **Grant
+   pressure_modeling** or **Revoke pressure_modeling**. Each action writes
+   a `WorkspaceEntitlement` upsert and an `AuditEvent` row tagged
+   `manual_entitlement.grant` or `manual_entitlement.revoke`.
+
+4. The page lists the most recent 200 entitlement rows and the last 50
+   audit events, so you can confirm the grant / revoke landed.
+
+**Local development without Clerk:** when `LOADBENCH_DISABLE_AUTH=true`
+the admin UI is reachable without a signed-in Clerk session (a warning
+banner is shown). Do not deploy with `LOADBENCH_DISABLE_AUTH=true`.
+
+**No database migration is required.** Manual grants reuse the existing
+`WorkspaceEntitlement` row and tag the source in the existing optional
+`bigcommerceCustomerEmail` column with a `manual:<admin-email>` prefix.
+The audit trail reuses the existing `AuditEvent` model.
+
+| Route                                  | Method | Purpose                                                  |
+| -------------------------------------- | ------ | -------------------------------------------------------- |
+| `/admin/entitlements`                  | GET    | Operator-only UI. Non-admins see an unauthorized notice. |
+| `/api/admin/entitlements`              | POST   | Grant or revoke. `op=grant\|revoke`, optional `workspaceId`/`email`/`reason`. Form or JSON. |
+
 ---
 
 ## Enabling Clerk
