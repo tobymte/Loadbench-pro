@@ -39,8 +39,60 @@ export async function GET(
   }
 
   const report = analyzeLoadReadiness(load);
+
+  // Counts of related solver-input records. These are presence indicators
+  // only — no computation reads from them.
+  const [
+    caseCapacityCount,
+    bulletDimensionCount,
+    powderMetadataCount,
+    barrelGeometryCount,
+    chronoCalibrationCount,
+  ] = await Promise.all([
+    prisma.caseCapacityMeasurement.count({
+      where: {
+        workspaceId: ctx.workspaceId,
+        OR: [
+          { cartridgeId: load.cartridgeId },
+          { loadId: load.id },
+          load.caseId ? { brassComponentId: load.caseId } : { id: '' },
+        ],
+      },
+    }),
+    prisma.bulletDimensionRecord.count({
+      where: {
+        workspaceId: ctx.workspaceId,
+        componentId: load.bulletId,
+      },
+    }),
+    prisma.powderMetadataRecord.count({
+      where: {
+        workspaceId: ctx.workspaceId,
+        componentId: load.powderId,
+      },
+    }),
+    load.rifleId
+      ? prisma.barrelGeometryRecord.count({
+          where: {
+            workspaceId: ctx.workspaceId,
+            rifleId: load.rifleId,
+          },
+        })
+      : Promise.resolve(0),
+    prisma.chronoCalibrationRecord.count({
+      where: { workspaceId: ctx.workspaceId },
+    }),
+  ]);
+
   return NextResponse.json({
     load: { id: load.id, name: load.name },
     readiness: report,
+    solverInputCounts: {
+      caseCapacity: caseCapacityCount,
+      bulletDimensions: bulletDimensionCount,
+      powderMetadata: powderMetadataCount,
+      barrelGeometry: barrelGeometryCount,
+      chronoCalibration: chronoCalibrationCount,
+    },
   });
 }

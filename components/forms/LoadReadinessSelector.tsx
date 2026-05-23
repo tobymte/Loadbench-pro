@@ -9,9 +9,18 @@ import type {
 
 type LoadOption = { id: string; name: string };
 
+type SolverInputCounts = {
+  caseCapacity: number;
+  bulletDimensions: number;
+  powderMetadata: number;
+  barrelGeometry: number;
+  chronoCalibration: number;
+};
+
 type ReadinessResponse = {
   load: { id: string; name: string };
   readiness: ReadinessReport;
+  solverInputCounts?: SolverInputCounts;
 };
 
 function levelTone(
@@ -103,6 +112,52 @@ export function LoadReadinessSelector({ loads }: { loads: LoadOption[] }) {
             view reports input presence only — it does not compute pressure,
             recommend a charge, or judge safety.
           </div>
+
+          {report.solverInputCounts && (
+            <div
+              className="border border-border rounded-md p-3"
+              data-testid="load-readiness-solver-input-counts"
+            >
+              <div className="text-[12px] font-semibold text-text mb-2">
+                Related solver-input records (counts only)
+              </div>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-1 text-[12px] text-text-muted">
+                <li className="flex justify-between">
+                  <span>Case capacity (cartridge / load / brass)</span>
+                  <span className="text-text">
+                    {report.solverInputCounts.caseCapacity}
+                  </span>
+                </li>
+                <li className="flex justify-between">
+                  <span>Bullet dimensions (bullet component)</span>
+                  <span className="text-text">
+                    {report.solverInputCounts.bulletDimensions}
+                  </span>
+                </li>
+                <li className="flex justify-between">
+                  <span>Powder metadata (powder component)</span>
+                  <span className="text-text">
+                    {report.solverInputCounts.powderMetadata}
+                  </span>
+                </li>
+                <li className="flex justify-between">
+                  <span>Barrel geometry (rifle)</span>
+                  <span className="text-text">
+                    {report.solverInputCounts.barrelGeometry}
+                  </span>
+                </li>
+                <li className="flex justify-between">
+                  <span>Chrono calibration (workspace)</span>
+                  <span className="text-text">
+                    {report.solverInputCounts.chronoCalibration}
+                  </span>
+                </li>
+              </ul>
+              <p className="mt-2 text-[11px] text-text-faint">
+                Counts only. No pressure math, no charge advice.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {report.readiness.categories.map((c) => (

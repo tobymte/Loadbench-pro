@@ -62,7 +62,17 @@ function checklistTone(
 export default async function PressureModelingTestBenchPage() {
   const ctx = await getWorkspaceContext();
 
-  const [loads, sources, modelVersions, validationRecords] = await Promise.all([
+  const [
+    loads,
+    sources,
+    modelVersions,
+    validationRecords,
+    caseCapacityCount,
+    bulletDimensionCount,
+    powderMetadataCount,
+    barrelGeometryCount,
+    chronoCalibrationCount,
+  ] = await Promise.all([
     prisma.load.findMany({
       where: { workspaceId: ctx.workspaceId },
       orderBy: { updatedAt: 'desc' },
@@ -86,7 +96,30 @@ export default async function PressureModelingTestBenchPage() {
         modelVersion: { select: { id: true, name: true } },
       },
     }),
+    prisma.caseCapacityMeasurement.count({
+      where: { workspaceId: ctx.workspaceId },
+    }),
+    prisma.bulletDimensionRecord.count({
+      where: { workspaceId: ctx.workspaceId },
+    }),
+    prisma.powderMetadataRecord.count({
+      where: { workspaceId: ctx.workspaceId },
+    }),
+    prisma.barrelGeometryRecord.count({
+      where: { workspaceId: ctx.workspaceId },
+    }),
+    prisma.chronoCalibrationRecord.count({
+      where: { workspaceId: ctx.workspaceId },
+    }),
   ]);
+
+  const solverInputCounts = {
+    caseCapacity: caseCapacityCount,
+    bulletDimensions: bulletDimensionCount,
+    powderMetadata: powderMetadataCount,
+    barrelGeometry: barrelGeometryCount,
+    chronoCalibration: chronoCalibrationCount,
+  };
 
   const checklist = solverReadinessChecklist();
 
@@ -148,6 +181,71 @@ export default async function PressureModelingTestBenchPage() {
                 </li>
               ))}
             </ul>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Solver input record counts"
+            description="Counts of workspace-scoped solver-input records. Counts only — no pressure math, no charge advice."
+            actions={
+              <Link
+                href="/solver-inputs"
+                className="text-[12px] text-accent hover:text-accent-hover"
+              >
+                Manage records →
+              </Link>
+            }
+          />
+          <CardBody>
+            <ul
+              className="grid grid-cols-1 md:grid-cols-2 gap-3"
+              data-testid="solver-input-counts"
+            >
+              {[
+                {
+                  key: 'case-capacity',
+                  label: 'Case capacity measurements',
+                  count: solverInputCounts.caseCapacity,
+                },
+                {
+                  key: 'bullet-dimensions',
+                  label: 'Bullet dimension records',
+                  count: solverInputCounts.bulletDimensions,
+                },
+                {
+                  key: 'powder-metadata',
+                  label: 'Powder metadata records',
+                  count: solverInputCounts.powderMetadata,
+                },
+                {
+                  key: 'barrel-geometry',
+                  label: 'Barrel geometry records',
+                  count: solverInputCounts.barrelGeometry,
+                },
+                {
+                  key: 'chrono-calibration',
+                  label: 'Chrono calibration records',
+                  count: solverInputCounts.chronoCalibration,
+                },
+              ].map((item) => (
+                <li
+                  key={item.key}
+                  className="flex items-center justify-between border-l-2 border-border pl-4 py-1"
+                  data-testid={`solver-input-count-${item.key}`}
+                >
+                  <span className="text-[13px] text-text">{item.label}</span>
+                  <Badge tone={item.count > 0 ? 'success' : 'neutral'}>
+                    {item.count}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-[11px] text-text-faint">
+              Counts here describe how much measurement / metadata coverage
+              exists. They do not imply any load is ready, recommended, or
+              safe.
+            </p>
           </CardBody>
         </Card>
 

@@ -17,43 +17,48 @@ datasource db {
 // =============================================================================
 
 model User {
-  id           String   @id @default(cuid())
-  clerkUserId  String   @unique
-  email        String   @unique
-  displayName  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  memberships   WorkspaceMember[]
-  ownedWorkspaces Workspace[]    @relation("WorkspaceOwner")
-  auditEvents   AuditEvent[]
-  importBatches ImportBatch[]
-  printJobs     PrintJob[]
-  fileObjects   FileObject[]
-}
-
-model Workspace {
   id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  ownerId     String
+  clerkUserId String   @unique
+  email       String   @unique
+  displayName String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
-  members     WorkspaceMember[]
-  cartridges  Cartridge[]
-  components  Component[]
-  rifles      Rifle[]
-  sources     Source[]
-  loads       Load[]
-  sessions    RangeSession[]
-  auditEvents AuditEvent[]
-  importBatches ImportBatch[]
-  printJobs   PrintJob[]
-  fileObjects FileObject[]
-  pressureModelVersions    PressureModelVersion[]
+  memberships     WorkspaceMember[]
+  ownedWorkspaces Workspace[]       @relation("WorkspaceOwner")
+  auditEvents     AuditEvent[]
+  importBatches   ImportBatch[]
+  printJobs       PrintJob[]
+  fileObjects     FileObject[]
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner                     User                       @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members                   WorkspaceMember[]
+  cartridges                Cartridge[]
+  components                Component[]
+  rifles                    Rifle[]
+  sources                   Source[]
+  loads                     Load[]
+  sessions                  RangeSession[]
+  auditEvents               AuditEvent[]
+  importBatches             ImportBatch[]
+  printJobs                 PrintJob[]
+  fileObjects               FileObject[]
+  pressureModelVersions     PressureModelVersion[]
   pressureValidationRecords PressureValidationRecord[]
+  caseCapacityMeasurements  CaseCapacityMeasurement[]
+  bulletDimensionRecords    BulletDimensionRecord[]
+  powderMetadataRecords     PowderMetadataRecord[]
+  barrelGeometryRecords     BarrelGeometryRecord[]
+  chronoCalibrationRecords  ChronoCalibrationRecord[]
 
   @@index([ownerId])
 }
@@ -72,8 +77,8 @@ model WorkspaceMember {
   role        WorkspaceRole @default(MEMBER)
   createdAt   DateTime      @default(now())
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, userId])
   @@index([userId])
@@ -84,21 +89,22 @@ model WorkspaceMember {
 // =============================================================================
 
 model Cartridge {
-  id            String   @id @default(cuid())
-  workspaceId   String
+  id                String   @id @default(cuid())
+  workspaceId       String
   // Common reference fields. Stored as user inputs against published references.
-  name          String                       // e.g. "6.5 Creedmoor"
-  saami         String?                      // SAAMI / CIP designation if known
-  caseCapacityGrH2O Float?                   // water grains, optional
-  maxPressurePsi    Int?                     // published MAP, optional
-  bulletDiameterIn  Float?                   // e.g. 0.264
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  name              String // e.g. "6.5 Creedmoor"
+  saami             String? // SAAMI / CIP designation if known
+  caseCapacityGrH2O Float? // water grains, optional
+  maxPressurePsi    Int? // published MAP, optional
+  bulletDiameterIn  Float? // e.g. 0.264
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  loads         Load[]
-  rifles        Rifle[]
+  workspace                Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  loads                    Load[]
+  rifles                   Rifle[]
+  caseCapacityMeasurements CaseCapacityMeasurement[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -112,81 +118,86 @@ enum ComponentKind {
 }
 
 model Component {
-  id            String        @id @default(cuid())
-  workspaceId   String
-  kind          ComponentKind
-  manufacturer  String
-  model         String
+  id                String        @id @default(cuid())
+  workspaceId       String
+  kind              ComponentKind
+  manufacturer      String
+  model             String
   // BULLET-specific
-  bulletWeightGr Float?
-  bulletBc       Float?
+  bulletWeightGr    Float?
+  bulletBc          Float?
   // POWDER-specific
-  burnRateLabel  String?      // user-entered, e.g. "H4350"
+  burnRateLabel     String? // user-entered, e.g. "H4350"
   // shared
-  lotNumber     String?
+  lotNumber         String?
   // Inventory recordkeeping fields. These are user-entered estimates only;
   // LoadBench Pro does not infer or recommend physical stock levels.
-  quantityOnHand     Float?
-  unit               String?  // e.g. "ct" (bullets/primers/cases), "lb" or "gr" (powder)
-  lowStockThreshold  Float?
-  notes         String?
-  archived      Boolean       @default(false)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  quantityOnHand    Float?
+  unit              String? // e.g. "ct" (bullets/primers/cases), "lb" or "gr" (powder)
+  lowStockThreshold Float?
+  notes             String?
+  archived          Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  bulletLoads   Load[]    @relation("LoadBullet")
-  powderLoads   Load[]    @relation("LoadPowder")
-  primerLoads   Load[]    @relation("LoadPrimer")
-  caseLoads     Load[]    @relation("LoadCase")
+  workspace                Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  bulletLoads              Load[]                    @relation("LoadBullet")
+  powderLoads              Load[]                    @relation("LoadPowder")
+  primerLoads              Load[]                    @relation("LoadPrimer")
+  caseLoads                Load[]                    @relation("LoadCase")
+  caseCapacityMeasurements CaseCapacityMeasurement[] @relation("BrassComponent")
+  bulletDimensionRecords   BulletDimensionRecord[]
+  powderMetadataRecords    PowderMetadataRecord[]
 
   @@index([workspaceId, kind])
 }
 
 model Rifle {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  name          String
-  manufacturer  String?
-  model         String?
-  cartridgeId   String?
+  id             String   @id @default(cuid())
+  workspaceId    String
+  name           String
+  manufacturer   String?
+  model          String?
+  cartridgeId    String?
   barrelLengthIn Float?
-  twistRate     String?       // "1:8"
-  opticNotes    String?
+  twistRate      String? // "1:8"
+  opticNotes     String?
   zeroDistanceYd Float?
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  workspace     Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  cartridge     Cartridge? @relation(fields: [cartridgeId], references: [id], onDelete: SetNull)
-  sessions      RangeSession[]
-  loads         Load[]
+  workspace             Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cartridge             Cartridge?             @relation(fields: [cartridgeId], references: [id], onDelete: SetNull)
+  sessions              RangeSession[]
+  loads                 Load[]
+  barrelGeometryRecords BarrelGeometryRecord[]
 
   @@index([workspaceId])
 }
 
 // Published reference source — manual, manufacturer data, etc.
 model Source {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  title         String
-  publisher     String?  // e.g. "Hodgdon", "Sierra"
-  edition       String?
-  publishedYear Int?
-  url           String?
+  id             String   @id @default(cuid())
+  workspaceId    String
+  title          String
+  publisher      String? // e.g. "Hodgdon", "Sierra"
+  edition        String?
+  publishedYear  Int?
+  url            String?
   // Pages or sections cited from the source.
-  citation      String?
+  citation       String?
   // The published max charge captured from this source for the referenced
   // bullet/powder/primer/cartridge combination, used for validation.
   publishedMaxGr Float?
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  loads         Load[]
-  validationRecords PressureValidationRecord[]
+  workspace             Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  loads                 Load[]
+  validationRecords     PressureValidationRecord[]
+  powderMetadataRecords PowderMetadataRecord[]
 
   @@index([workspaceId])
 }
@@ -204,52 +215,54 @@ enum LoadStatus {
 }
 
 model Load {
-  id            String     @id @default(cuid())
-  workspaceId   String
+  id          String  @id @default(cuid())
+  workspaceId String
   // Required references
-  cartridgeId   String
-  bulletId      String
-  powderId      String
-  primerId      String?
-  caseId        String?
-  rifleId       String?
+  cartridgeId String
+  bulletId    String
+  powderId    String
+  primerId    String?
+  caseId      String?
+  rifleId     String?
   // Citation to a published source (required for charge-bearing saves;
   // enforced in `lib/validation/load.ts`, not at the DB layer, so drafts
   // can be saved without a source).
-  sourceId      String?
+  sourceId    String?
 
-  name          String
-  status        LoadStatus @default(DRAFT)
+  name   String
+  status LoadStatus @default(DRAFT)
 
   // Safety-relevant fields
-  chargeGr             Float?            // powder charge in grains
-  cartridgeOalIn       Float?            // overall length
+  chargeGr               Float? // powder charge in grains
+  cartridgeOalIn         Float? // overall length
   cartridgeBaseToOgiveIn Float?
-  caseTrimLengthIn     Float?
-  neckTensionThou      Float?            // .001"
+  caseTrimLengthIn       Float?
+  neckTensionThou        Float? // .001"
   // The user must explicitly check this before saving a charge-bearing load.
-  safetyAcknowledged   Boolean           @default(false)
+  safetyAcknowledged     Boolean @default(false)
   // Free-form note for safety context (e.g. "starting load, working up").
-  safetyNotes          String?
+  safetyNotes            String?
 
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Audit
-  createdById   String?
-  updatedById   String?
+  createdById String?
+  updatedById String?
 
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  cartridge     Cartridge @relation(fields: [cartridgeId], references: [id])
-  bullet        Component @relation("LoadBullet", fields: [bulletId], references: [id])
-  powder        Component @relation("LoadPowder", fields: [powderId], references: [id])
-  primer        Component? @relation("LoadPrimer", fields: [primerId], references: [id])
-  case_         Component? @relation("LoadCase", fields: [caseId], references: [id])
-  rifle         Rifle?    @relation(fields: [rifleId], references: [id], onDelete: SetNull)
-  source        Source?   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
-  sessions      RangeSession[]
-  validationRecords PressureValidationRecord[]
+  workspace                Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cartridge                Cartridge                  @relation(fields: [cartridgeId], references: [id])
+  bullet                   Component                  @relation("LoadBullet", fields: [bulletId], references: [id])
+  powder                   Component                  @relation("LoadPowder", fields: [powderId], references: [id])
+  primer                   Component?                 @relation("LoadPrimer", fields: [primerId], references: [id])
+  case_                    Component?                 @relation("LoadCase", fields: [caseId], references: [id])
+  rifle                    Rifle?                     @relation(fields: [rifleId], references: [id], onDelete: SetNull)
+  source                   Source?                    @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  sessions                 RangeSession[]
+  validationRecords        PressureValidationRecord[]
+  caseCapacityMeasurements CaseCapacityMeasurement[]
+  chronoCalibrationRecords ChronoCalibrationRecord[]  @relation("ChronoCalRefLoad")
 
   @@index([workspaceId, status])
   @@index([cartridgeId])
@@ -260,30 +273,30 @@ model Load {
 // =============================================================================
 
 model RangeSession {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  loadId        String?
-  rifleId       String?
-  date          DateTime @default(now())
-  location      String?
-  tempF         Float?
-  humidityPct   Float?
-  pressureInHg  Float?
-  windMph       Float?
+  id              String   @id @default(cuid())
+  workspaceId     String
+  loadId          String?
+  rifleId         String?
+  date            DateTime @default(now())
+  location        String?
+  tempF           Float?
+  humidityPct     Float?
+  pressureInHg    Float?
+  windMph         Float?
   // Group / chrono summary fields, optional
-  shotsFired    Int?
-  avgVelocityFps Float?
-  esFps         Float?
-  sdFps         Float?
-  groupSizeIn   Float?
+  shotsFired      Int?
+  avgVelocityFps  Float?
+  esFps           Float?
+  sdFps           Float?
+  groupSizeIn     Float?
   groupDistanceYd Float?
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  load          Load?     @relation(fields: [loadId], references: [id], onDelete: SetNull)
-  rifle         Rifle?    @relation(fields: [rifleId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  load      Load?     @relation(fields: [loadId], references: [id], onDelete: SetNull)
+  rifle     Rifle?    @relation(fields: [rifleId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
 }
@@ -296,16 +309,16 @@ model AuditEvent {
   id          String   @id @default(cuid())
   workspaceId String
   userId      String?
-  entityType  String   // "Load", "Component", ...
+  entityType  String // "Load", "Component", ...
   entityId    String
-  action      String   // "create" | "update" | "delete" | "export" | "print"
+  action      String // "create" | "update" | "delete" | "export" | "print"
   // JSON-encoded snapshot or diff. Stored as String so it can be read on any
   // Postgres provider without `Json` quirks; consumers can JSON.parse it.
   payload     String?
   createdAt   DateTime @default(now())
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, entityType, entityId])
 }
@@ -321,30 +334,30 @@ model ImportBatch {
   id          String       @id @default(cuid())
   workspaceId String
   userId      String?
-  source      String       // file name or origin label
-  entityType  String       // "Load", "Component", ...
+  source      String // file name or origin label
+  entityType  String // "Load", "Component", ...
   status      ImportStatus @default(PENDING)
   totalRows   Int          @default(0)
   errorRows   Int          @default(0)
   createdAt   DateTime     @default(now())
   completedAt DateTime?
 
-  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
-  rows        ImportBatchRow[]
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  rows      ImportBatchRow[]
 
   @@index([workspaceId])
 }
 
 model ImportBatchRow {
-  id        String   @id @default(cuid())
-  batchId   String
-  rowIndex  Int
-  raw       String   // JSON-encoded raw row
-  error     String?
-  imported  Boolean  @default(false)
+  id       String  @id @default(cuid())
+  batchId  String
+  rowIndex Int
+  raw      String // JSON-encoded raw row
+  error    String?
+  imported Boolean @default(false)
 
-  batch     ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   @@index([batchId])
 }
@@ -360,13 +373,13 @@ model PrintJob {
   id          String         @id @default(cuid())
   workspaceId String
   userId      String?
-  kind        String         // "load-card" | "session-report" | "label"
-  payload     String         // JSON-encoded snapshot of what was printed
+  kind        String // "load-card" | "session-report" | "label"
+  payload     String // JSON-encoded snapshot of what was printed
   status      PrintJobStatus @default(QUEUED)
   createdAt   DateTime       @default(now())
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
 }
@@ -386,8 +399,8 @@ model FileObject {
   entityId    String?
   createdAt   DateTime @default(now())
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
 }
@@ -419,7 +432,7 @@ model PressureModelVersion {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace         Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   validationRecords PressureValidationRecord[]
 
   @@index([workspaceId])
@@ -458,4 +471,144 @@ model PressureValidationRecord {
 
   @@index([workspaceId, status])
   @@index([loadId])
+}
+
+// =============================================================================
+// Solver-input data capture — EXPERIMENTAL.
+// These tables store user-entered measurements and metadata that a future,
+// expert-validated internal-ballistics solver would need as inputs. NOTHING
+// in this app computes pressure, recommends charges, or makes safe/unsafe
+// claims from these rows. They are stores, not formulas.
+// =============================================================================
+
+model CaseCapacityMeasurement {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  cartridgeId      String?
+  loadId           String?
+  brassComponentId String?
+  lotNumber        String?
+  method           String? // e.g. "water-fill", "alcohol-fill"
+  firedOrResized   String? // "fired" | "resized" | "new"
+  waterCapacityGr  Float?
+  sampleCount      Int?
+  avgCapacityGr    Float?
+  sdCapacityGr     Float?
+  tempF            Float?
+  notes            String?
+  createdById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace      Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cartridge      Cartridge? @relation(fields: [cartridgeId], references: [id], onDelete: SetNull)
+  load           Load?      @relation(fields: [loadId], references: [id], onDelete: SetNull)
+  brassComponent Component? @relation("BrassComponent", fields: [brassComponentId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([cartridgeId])
+  @@index([loadId])
+}
+
+model BulletDimensionRecord {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  componentId      String?
+  manufacturer     String?
+  model            String?
+  lotNumber        String?
+  weightGr         Float?
+  diameterIn       Float?
+  lengthIn         Float?
+  bearingSurfaceIn Float?
+  boatTailLengthIn Float?
+  ogiveStyle       String?
+  bcG1             Float?
+  bcG7             Float?
+  sampleCount      Int?
+  notes            String?
+  createdById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  component Component? @relation(fields: [componentId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([componentId])
+}
+
+model PowderMetadataRecord {
+  id                   String   @id @default(cuid())
+  workspaceId          String
+  componentId          String?
+  manufacturer         String?
+  powderName           String?
+  lotNumber            String?
+  burnRateLabel        String?
+  densityGcc           Float?
+  bulkDensityGrPerCc   Float?
+  kernelShape          String?
+  tempSensitivityNotes String?
+  sourceId             String?
+  notes                String?
+  createdById          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  component Component? @relation(fields: [componentId], references: [id], onDelete: SetNull)
+  source    Source?    @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([componentId])
+}
+
+model BarrelGeometryRecord {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  rifleId          String?
+  name             String?
+  barrelLengthIn   Float?
+  twistRate        String?
+  boreDiameterIn   Float?
+  grooveDiameterIn Float?
+  chamberNotes     String?
+  throatLengthIn   Float?
+  freeboreIn       Float?
+  landCount        Int?
+  notes            String?
+  createdById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  rifle     Rifle?    @relation(fields: [rifleId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([rifleId])
+}
+
+model ChronoCalibrationRecord {
+  id                   String    @id @default(cuid())
+  workspaceId          String
+  deviceName           String?
+  deviceType           String?
+  serialNumber         String?
+  firmwareVersion      String?
+  calibrationDate      DateTime?
+  referenceLoadId      String?
+  referenceVelocityFps Float?
+  observedVelocityFps  Float?
+  offsetFps            Float?
+  conditionsJson       String?
+  notes                String?
+  createdById          String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  referenceLoad Load?     @relation("ChronoCalRefLoad", fields: [referenceLoadId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
 }
