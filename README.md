@@ -39,7 +39,7 @@ npm run prisma:migrate -- --name init
 npm run dev
 ```
 
-Open <http://localhost:3000>. The landing page lives at `/`; the app shell lives under the `(app)` route group (`/dashboard`, `/cartridges`, `/components`, `/rifles`, `/sources`, `/loads`, `/loads/new`, `/loads/[id]`, `/sessions`, `/notebook`, `/compare`, `/ballistics`, `/chrono-import`, `/data-tools`, `/settings`). The required-reading safety page is at `/safety`.
+Open <http://localhost:3000>. The landing page lives at `/`; the app shell lives under the `(app)` route group (`/dashboard`, `/cartridges`, `/components`, `/rifles`, `/sources`, `/loads`, `/loads/new`, `/loads/[id]`, `/sessions`, `/notebook`, `/compare`, `/ballistics`, `/chrono-import`, `/pressure-modeling`, `/pressure-engine`, `/simulation-sandbox`, `/solver-inputs`, `/published-data-review`, `/data-tools`, `/settings`). The required-reading safety page is at `/safety`.
 
 ### Tools
 
@@ -80,6 +80,87 @@ Copy `.env.example` to `.env.local`. Never commit real secrets.
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL`         | optional             | Defaults to `/sign-up`.                                              |
 | `LOADBENCH_DISABLE_AUTH`                | optional             | `"true"` lets the scaffold render without Clerk; flip to `"false"` once Clerk is wired. |
 | `NEXT_PUBLIC_APP_NAME` / `..._APP_URL`  | optional             | Used for window titles / OG metadata.                                |
+
+---
+
+## Pressure engine — non-operational shell
+
+The `/pressure-engine` page is the controlled validation workspace gated by
+the `pressure_modeling` entitlement. **Pressure prediction is disabled.**
+Every run on this page persists `pressurePredictionStatus = "disabled"` on
+its audit row, and the runner intentionally produces:
+
+- No predicted PSI / peak pressure / chamber pressure value.
+- No `recommendedCharge`, `maxChargeRecommendation`, or load advice.
+- No `safe` / `unsafe` verdict.
+- No powder substitution or increase/decrease charge advice.
+
+What it does produce:
+
+| Output                          | Description                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| `dataCompleteness`              | 0..1 fraction of expected solver-input / chrono / reference fields supplied.   |
+| `missingFields`                 | Names of fields that are absent or null.                                       |
+| `inputConsistencyWarnings`      | Descriptive warnings — e.g. observed velocity without a reference to compare.  |
+| `sourceCoverage`                | Which categories of reference / observation supplied data.                     |
+| `velocityDeltaFps`, `…Pct`      | Velocity-only delta when both reference and observed velocity are supplied.    |
+| `pressurePredictionStatus`      | Literal string `"disabled"` on every run, persisted to the audit log.          |
+
+### Forbidden-output guardrails
+
+`lib/validation/pressureEngine.ts` defines `FORBIDDEN_OUTPUT_KEYS` (case-
+insensitive) covering `predictedPressurePsi`, `peakPressure`,
+`chamberPressure`, `safe`, `unsafe`, `recommendedCharge`,
+`maxChargeRecommendation`, `loadAdvice`, `powderSubstitution`,
+`increaseCharge`, `decreaseCharge`, and aliases. The API route at
+`POST /api/pressure-engine/runs`:
+
+1. Rejects any request body that contains a forbidden key at any depth
+   (recursive scan of objects and arrays). A `REJECTED_BY_GUARDRAIL`
+   audit row is persisted so the attempt is visible in the history view.
+2. Re-strips the candidate output object through the same forbidden-key
+   filter before persistence, as defence-in-depth.
+3. Always sets `pressurePredictionStatus = "disabled"` on the persisted
+   row, regardless of caller input.
+
+An in-process smoke check is exposed at `GET /api/pressure-engine/smoke`.
+It verifies that `findForbiddenKeys` catches every documented key
+(top-level, nested-object, nested-array, case-insensitive variants) and
+that `stripForbiddenKeys` drops them.
+
+### Routes
+
+| Route                              | Method | Purpose                                                                                  |
+| ---------------------------------- | ------ | ---------------------------------------------------------------------------------------- |
+| `/pressure-engine`                 | GET    | Premium-gated workspace UI (paywall when no entitlement).                                |
+| `/api/pressure-engine/runs`        | POST   | Record a non-operational engine run; rejects forbidden keys with 400.                    |
+| `/api/pressure-engine/runs`        | GET    | List recent engine runs for the audit / history view.                                    |
+| `/api/pressure-engine/smoke`       | GET    | In-process guardrail smoke check.                                                        |
+
+### Model governance
+
+`PressureModelVersion` now records additional governance metadata
+(additive, all nullable):
+
+- `governanceStatus` — `"draft"` / `"validation_only"` / `"disabled"` /
+  `"retired"`. Documentation only; engine runs remain non-operational
+  regardless of value.
+- `blockedOutputsPolicy` — free-form text declaring what the model is
+  forbidden from emitting.
+- `validationNotes` — free-form notes about validation progress.
+
+### Requirements before any model can be enabled
+
+Engine runs are non-operational pending **all** of:
+
+1. A validated lab pressure model with documented variance bounds.
+2. SAAMI / CIP / manufacturer data review covering every supported
+   cartridge / powder / bullet combination.
+3. Legal and safety review of the model and its outputs.
+4. Instrumented test validation across the operating envelope.
+
+Until those are in place, no pressure / charge / safe-or-unsafe output
+will be produced by this app under any circumstance.
 
 ---
 
@@ -161,6 +242,12 @@ numbers never reach LoadBench Pro.
    # or, in CI / production:
    npm run prisma:deploy
    ```
+
+   The pressure-engine shell ships its own additive migration
+   (`20260523220000_pressure_engine_runs`) that adds the
+   `PressureEngineRun` table, the `PressureEngineRunStatus` enum, and three
+   governance metadata columns on `PressureModelVersion`. It is included
+   in `npm run prisma:deploy`.
 
 6. **Test the flow**.
    - From `/pressure-modeling` or `/simulation-sandbox`, click

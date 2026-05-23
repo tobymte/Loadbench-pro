@@ -53,6 +53,7 @@ model Workspace {
   printJobs                 PrintJob[]
   fileObjects               FileObject[]
   pressureModelVersions     PressureModelVersion[]
+  pressureEngineRuns        PressureEngineRun[]
   pressureValidationRecords PressureValidationRecord[]
   caseCapacityMeasurements  CaseCapacityMeasurement[]
   bulletDimensionRecords    BulletDimensionRecord[]
@@ -338,6 +339,7 @@ model Load {
   caseCapacityMeasurements CaseCapacityMeasurement[]
   chronoCalibrationRecords ChronoCalibrationRecord[]  @relation("ChronoCalRefLoad")
   simulationRuns           SimulationRun[]
+  engineRuns               PressureEngineRun[]        @relation("EngineRunLoad")
 
   @@index([workspaceId, status])
   @@index([cartridgeId])
@@ -373,6 +375,7 @@ model RangeSession {
   load           Load?           @relation(fields: [loadId], references: [id], onDelete: SetNull)
   rifle          Rifle?          @relation(fields: [rifleId], references: [id], onDelete: SetNull)
   simulationRuns SimulationRun[]
+  engineRuns     PressureEngineRun[] @relation("EngineRunSession")
 
   @@index([workspaceId])
 }
@@ -505,14 +508,89 @@ model PressureModelVersion {
   description String?
   status      PressureModelStatus @default(DRAFT)
   notes       String?
+  // Governance metadata: explicit operational status of this model identity.
+  // Values are validated server-side. Any value other than DISABLED keeps the
+  // engine in non-operational mode (the runner never produces pressure
+  // predictions regardless of governance state — this column drives display
+  // and audit only).
+  governanceStatus    String? // 'draft' | 'validation_only' | 'disabled' | 'retired'
+  blockedOutputsPolicy String? // Free-form policy text: what the model is forbidden from emitting.
+  validationNotes     String? // Free-form notes about the validation status / progress.
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
   workspace         Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   validationRecords PressureValidationRecord[]
   simulationRuns    SimulationRun[]
+  engineRuns        PressureEngineRun[]
 
   @@index([workspaceId])
+}
+
+// =============================================================================
+// Pressure engine — NON-OPERATIONAL SHELL.
+// PressureEngineRun records an audit of a structured request to evaluate a
+// candidate pressure model against user-entered solver inputs and chrono /
+// reference observations. The runner intentionally produces no pressure
+// estimate, no charge recommendation, and no safe/unsafe verdict. It records
+// data completeness, missing-field bookkeeping, source coverage, and (where
+// available) reference-vs-observed velocity deltas. Every row carries an
+// explicit `pressurePredictionStatus = 'disabled'` so historical audit can
+// confirm the engine has never been operational.
+// =============================================================================
+
+enum PressureEngineRunStatus {
+  DRAFT
+  INPUT_INCOMPLETE
+  COMPLETED_NON_OPERATIONAL
+  REJECTED_BY_GUARDRAIL
+  ARCHIVED
+}
+
+model PressureEngineRun {
+  id                  String                  @id @default(cuid())
+  workspaceId         String
+  modelVersionId      String?
+  loadId              String?
+  rangeSessionId      String?
+  validationRecordId  String?
+  status              PressureEngineRunStatus @default(DRAFT)
+  // Always 'disabled' for any row this app writes. Persisted so the audit
+  // trail proves no run ever produced a pressure estimate. Stored as a
+  // string column so future, expert-reviewed model integrations could add
+  // additional non-pressure status labels without a destructive migration.
+  pressurePredictionStatus String                @default("disabled")
+  // JSON-encoded snapshot of inputs at the moment of the run (linked
+  // entities, solver-input record counts, chrono observations). String type
+  // for Postgres-provider portability, matching the AuditEvent.payload and
+  // SimulationRun.inputsSnapshotJson convention.
+  inputsSnapshotJson  String?
+  // JSON-encoded non-prescriptive outputs: data completeness score, missing
+  // fields list, source coverage, velocity delta (if observable), input
+  // consistency warnings. Intentionally contains no PSI / pressure estimate
+  // / charge recommendation. The forbidden-key guardrail rejects any input
+  // body that would imply otherwise before the row is written.
+  outputsJson         String?
+  // Echo of the velocity-only delta (if observable) for easy SQL queries
+  // without parsing outputsJson. Velocity, never pressure.
+  velocityDeltaFps    Float?
+  velocityDeltaPct    Float?
+  notes               String?
+  // The caller must check this before the row is saved.
+  acknowledgedExperimental Boolean              @default(false)
+  createdById         String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  workspace        Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  modelVersion     PressureModelVersion?      @relation(fields: [modelVersionId], references: [id], onDelete: SetNull)
+  load             Load?                      @relation("EngineRunLoad", fields: [loadId], references: [id], onDelete: SetNull)
+  rangeSession     RangeSession?              @relation("EngineRunSession", fields: [rangeSessionId], references: [id], onDelete: SetNull)
+  validationRecord PressureValidationRecord?  @relation("EngineRunValidation", fields: [validationRecordId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([modelVersionId])
+  @@index([loadId])
 }
 
 model PressureValidationRecord {
@@ -546,6 +624,7 @@ model PressureValidationRecord {
   source         Source?               @relation(fields: [sourceId], references: [id], onDelete: SetNull)
   modelVersion   PressureModelVersion? @relation(fields: [modelVersionId], references: [id], onDelete: SetNull)
   simulationRuns SimulationRun[]
+  engineRuns     PressureEngineRun[]   @relation("EngineRunValidation")
 
   @@index([workspaceId, status])
   @@index([loadId])
