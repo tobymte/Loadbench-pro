@@ -37,6 +37,7 @@ export default async function LoadDetailPage({
           esFps: true,
           sdFps: true,
           groupSizeIn: true,
+          groupDistanceYd: true,
           shotsFired: true,
         },
       },
@@ -212,6 +213,7 @@ export default async function LoadDetailPage({
                     <th className="text-right">ES</th>
                     <th className="text-right">SD</th>
                     <th className="text-right">Group (in)</th>
+                    <th className="text-right">Dist (yd)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -229,6 +231,9 @@ export default async function LoadDetailPage({
                       <td className="text-right tabular-nums">{s.sdFps ?? '—'}</td>
                       <td className="text-right tabular-nums">
                         {s.groupSizeIn ?? '—'}
+                      </td>
+                      <td className="text-right tabular-nums">
+                        {s.groupDistanceYd ?? '—'}
                       </td>
                     </tr>
                   ))}

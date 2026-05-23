@@ -23,6 +23,7 @@ const sessionInput = z.object({
   esFps: z.number().min(0).optional().nullable(),
   sdFps: z.number().min(0).optional().nullable(),
   groupSizeIn: z.number().min(0).optional().nullable(),
+  groupDistanceYd: z.number().positive().optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
 });
 
@@ -134,6 +135,7 @@ export async function POST(req: NextRequest) {
       esFps: data.esFps ?? null,
       sdFps: data.sdFps ?? null,
       groupSizeIn: data.groupSizeIn ?? null,
+      groupDistanceYd: data.groupDistanceYd ?? null,
       notes: data.notes ?? null,
     },
   });

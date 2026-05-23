@@ -30,7 +30,15 @@ export default async function NotebookPage() {
         },
         primer: { select: { manufacturer: true, model: true } },
         case_: { select: { manufacturer: true, model: true } },
-        rifle: { select: { name: true } },
+        rifle: {
+          select: {
+            name: true,
+            barrelLengthIn: true,
+            twistRate: true,
+            opticNotes: true,
+            zeroDistanceYd: true,
+          },
+        },
         source: {
           select: {
             title: true,
@@ -43,7 +51,6 @@ export default async function NotebookPage() {
         },
         sessions: {
           orderBy: { date: 'desc' },
-          take: 1,
           select: {
             date: true,
             location: true,
@@ -51,6 +58,7 @@ export default async function NotebookPage() {
             esFps: true,
             sdFps: true,
             groupSizeIn: true,
+            groupDistanceYd: true,
             shotsFired: true,
           },
         },
@@ -73,32 +81,58 @@ export default async function NotebookPage() {
     }),
   ]);
 
-  const printableLoads: PrintableLoad[] = loads.map((l) => ({
-    id: l.id,
-    name: l.name,
-    status: l.status,
-    chargeGr: l.chargeGr,
-    cartridgeOalIn: l.cartridgeOalIn,
-    cartridgeBaseToOgiveIn: l.cartridgeBaseToOgiveIn,
-    caseTrimLengthIn: l.caseTrimLengthIn,
-    neckTensionThou: l.neckTensionThou,
-    safetyAcknowledged: l.safetyAcknowledged,
-    safetyNotes: l.safetyNotes,
-    notes: l.notes,
-    cartridge: l.cartridge,
-    bullet: l.bullet,
-    powder: l.powder,
-    primer: l.primer,
-    case_: l.case_,
-    rifle: l.rifle,
-    source: l.source,
-    latestSession: l.sessions[0]
-      ? {
-          ...l.sessions[0],
-          date: l.sessions[0].date.toISOString(),
-        }
-      : null,
-  }));
+  const printableLoads: PrintableLoad[] = loads.map((l) => {
+    const sessions = l.sessions;
+    const latest = sessions[0] ?? null;
+    let bestGroup: number | null = null;
+    let sdSum = 0;
+    let sdCount = 0;
+    for (const s of sessions) {
+      if (s.groupSizeIn != null && (bestGroup == null || s.groupSizeIn < bestGroup)) {
+        bestGroup = s.groupSizeIn;
+      }
+      if (s.sdFps != null) {
+        sdSum += s.sdFps;
+        sdCount += 1;
+      }
+    }
+    return {
+      id: l.id,
+      name: l.name,
+      status: l.status,
+      chargeGr: l.chargeGr,
+      cartridgeOalIn: l.cartridgeOalIn,
+      cartridgeBaseToOgiveIn: l.cartridgeBaseToOgiveIn,
+      caseTrimLengthIn: l.caseTrimLengthIn,
+      neckTensionThou: l.neckTensionThou,
+      safetyAcknowledged: l.safetyAcknowledged,
+      safetyNotes: l.safetyNotes,
+      notes: l.notes,
+      cartridge: l.cartridge,
+      bullet: l.bullet,
+      powder: l.powder,
+      primer: l.primer,
+      case_: l.case_,
+      rifle: l.rifle,
+      source: l.source,
+      latestSession: latest
+        ? {
+            ...latest,
+            date: latest.date.toISOString(),
+          }
+        : null,
+      chronoSummary:
+        sessions.length > 0
+          ? {
+              sessionCount: sessions.length,
+              latestAvgVelocityFps: latest?.avgVelocityFps ?? null,
+              bestGroupSizeIn: bestGroup,
+              avgSdFps:
+                sdCount > 0 ? Math.round((sdSum / sdCount) * 10) / 10 : null,
+            }
+          : null,
+    };
+  });
 
   const printableComponents: PrintableComponent[] = components.map((c) => ({
     id: c.id,

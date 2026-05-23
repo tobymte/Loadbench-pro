@@ -20,6 +20,7 @@ const NAV: Array<{
     items: [
       { href: '/cartridges', label: 'Cartridges' },
       { href: '/components', label: 'Components' },
+      { href: '/rifles', label: 'Rifles' },
       { href: '/sources', label: 'Sources' },
       { href: '/loads', label: 'Loads' },
       { href: '/sessions', label: 'Range sessions' },

@@ -38,6 +38,7 @@ export function SessionForm({ options }: { options: SessionFormOptions }) {
       esFps: numberOrNull(fd.get('esFps')),
       sdFps: numberOrNull(fd.get('sdFps')),
       groupSizeIn: numberOrNull(fd.get('groupSizeIn')),
+      groupDistanceYd: numberOrNull(fd.get('groupDistanceYd')),
       notes: stringOrNull(fd.get('notes')),
     };
 
@@ -120,6 +121,7 @@ export function SessionForm({ options }: { options: SessionFormOptions }) {
               name="rifleId"
               options={[{ value: '', label: '— None —' }, ...options.rifles]}
               issues={issuesFor('rifleId')}
+              testId="session-rifle"
             />
             <Field label="Location" name="location" placeholder="e.g. home range" issues={issuesFor('location')} />
             <Field
@@ -201,6 +203,15 @@ export function SessionForm({ options }: { options: SessionFormOptions }) {
               min="0"
               inputMode="decimal"
               issues={issuesFor('groupSizeIn')}
+            />
+            <Field
+              label="Group distance (yd)"
+              name="groupDistanceYd"
+              type="number"
+              step="1"
+              min="0"
+              inputMode="numeric"
+              issues={issuesFor('groupDistanceYd')}
             />
           </div>
 

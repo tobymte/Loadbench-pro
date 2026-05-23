@@ -29,7 +29,13 @@ export type PrintableLoad = {
   } | null;
   primer: { manufacturer: string; model: string } | null;
   case_: { manufacturer: string; model: string } | null;
-  rifle: { name: string } | null;
+  rifle: {
+    name: string;
+    barrelLengthIn: number | null;
+    twistRate: string | null;
+    opticNotes: string | null;
+    zeroDistanceYd: number | null;
+  } | null;
   source: {
     title: string;
     publisher: string | null;
@@ -45,7 +51,14 @@ export type PrintableLoad = {
     esFps: number | null;
     sdFps: number | null;
     groupSizeIn: number | null;
+    groupDistanceYd: number | null;
     shotsFired: number | null;
+  } | null;
+  chronoSummary: {
+    sessionCount: number;
+    latestAvgVelocityFps: number | null;
+    bestGroupSizeIn: number | null;
+    avgSdFps: number | null;
   } | null;
 };
 
@@ -401,6 +414,25 @@ function RangeCard({ load }: { load: PrintableLoad }) {
         </div>
       </div>
 
+      {load.rifle && (
+        <div className="mt-2 border-t border-border print:border-black pt-2 text-[12px]">
+          <div className="text-[10px] uppercase tracking-wider text-text-faint print:text-black">
+            Rifle profile
+          </div>
+          <div className="text-text print:text-black">
+            {load.rifle.name}
+            {load.rifle.barrelLengthIn != null
+              ? ` · ${load.rifle.barrelLengthIn}" bbl`
+              : ''}
+            {load.rifle.twistRate ? ` · ${load.rifle.twistRate} twist` : ''}
+            {load.rifle.zeroDistanceYd != null
+              ? ` · ${load.rifle.zeroDistanceYd}yd zero`
+              : ''}
+            {load.rifle.opticNotes ? ` · ${load.rifle.opticNotes}` : ''}
+          </div>
+        </div>
+      )}
+
       {load.latestSession && (
         <div className="mt-2 border-t border-border print:border-black pt-2 text-[12px]">
           <div className="text-[10px] uppercase tracking-wider text-text-faint print:text-black">
@@ -418,7 +450,28 @@ function RangeCard({ load }: { load: PrintableLoad }) {
             {load.latestSession.esFps != null ? ` · ES ${load.latestSession.esFps}` : ''}
             {load.latestSession.sdFps != null ? ` · SD ${load.latestSession.sdFps}` : ''}
             {load.latestSession.groupSizeIn != null
-              ? ` · group ${load.latestSession.groupSizeIn}"`
+              ? ` · group ${load.latestSession.groupSizeIn}"${load.latestSession.groupDistanceYd != null ? ` @ ${load.latestSession.groupDistanceYd}yd` : ''}`
+              : ''}
+          </div>
+        </div>
+      )}
+
+      {load.chronoSummary && load.chronoSummary.sessionCount > 0 && (
+        <div className="mt-2 border-t border-border print:border-black pt-2 text-[12px]">
+          <div className="text-[10px] uppercase tracking-wider text-text-faint print:text-black">
+            Chrono summary (observed)
+          </div>
+          <div className="text-text print:text-black">
+            {load.chronoSummary.sessionCount} session
+            {load.chronoSummary.sessionCount === 1 ? '' : 's'}
+            {load.chronoSummary.latestAvgVelocityFps != null
+              ? ` · latest avg ${load.chronoSummary.latestAvgVelocityFps} fps`
+              : ''}
+            {load.chronoSummary.avgSdFps != null
+              ? ` · avg SD ${load.chronoSummary.avgSdFps}`
+              : ''}
+            {load.chronoSummary.bestGroupSizeIn != null
+              ? ` · best group ${load.chronoSummary.bestGroupSizeIn}"`
               : ''}
           </div>
         </div>

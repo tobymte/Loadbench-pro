@@ -1,9 +1,10 @@
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader } from '@/components/ui/Card';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SessionForm } from '@/components/forms/SessionForm';
 import { prisma } from '@/lib/db/prisma';
 import { getWorkspaceContext } from '@/lib/auth/workspace';
+import { summarizeSessionsByLoad } from '@/lib/analysis/sessions';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,8 @@ export default async function SessionsPage() {
     }),
   ]);
 
+  const analysis = summarizeSessionsByLoad(sessions);
+
   return (
     <>
       <Topbar title="Range sessions" />
@@ -41,6 +44,57 @@ export default async function SessionsPage() {
             rifles: rifles.map((r) => ({ value: r.id, label: r.name })),
           }}
         />
+
+        <Card>
+          <CardHeader
+            title="Per-load analysis"
+            description="Observed data only. Summaries computed from sessions you have logged — LoadBench Pro does not predict velocity, pressure, or charge."
+          />
+          <CardBody>
+            {analysis.length === 0 ? (
+              <p className="text-sm text-text-muted">
+                Link sessions to loads to see per-load summaries here.
+              </p>
+            ) : (
+              <table data-testid="analysis-table">
+                <thead>
+                  <tr>
+                    <th>Load</th>
+                    <th>Rifle</th>
+                    <th className="text-right">Sessions</th>
+                    <th className="text-right">Latest avg vel</th>
+                    <th className="text-right">Best group (in)</th>
+                    <th className="text-right">Avg SD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analysis.map((row) => (
+                    <tr key={row.loadId}>
+                      <td className="font-medium">{row.loadName}</td>
+                      <td className="text-text-muted">
+                        {row.rifleName ?? '—'}
+                      </td>
+                      <td className="text-right tabular-nums">{row.count}</td>
+                      <td className="text-right tabular-nums">
+                        {row.latestAvgVelocityFps ?? '—'}
+                      </td>
+                      <td className="text-right tabular-nums">
+                        {row.bestGroupSizeIn ?? '—'}
+                      </td>
+                      <td className="text-right tabular-nums">
+                        {row.avgSdFps ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="mt-3 text-[11px] text-text-faint">
+              All values are observed and user-entered. Nothing here is a
+              predicted velocity, predicted pressure, or charge recommendation.
+            </p>
+          </CardBody>
+        </Card>
 
         <Card>
           <CardHeader
@@ -69,6 +123,7 @@ export default async function SessionsPage() {
                   <th className="text-right">ES</th>
                   <th className="text-right">SD</th>
                   <th className="text-right">Group (in)</th>
+                  <th className="text-right">Dist (yd)</th>
                 </tr>
               </thead>
               <tbody>
@@ -89,6 +144,9 @@ export default async function SessionsPage() {
                     <td className="text-right tabular-nums">{s.esFps ?? '—'}</td>
                     <td className="text-right tabular-nums">{s.sdFps ?? '—'}</td>
                     <td className="text-right tabular-nums">{s.groupSizeIn ?? '—'}</td>
+                    <td className="text-right tabular-nums">
+                      {s.groupDistanceYd ?? '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>

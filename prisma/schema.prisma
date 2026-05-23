@@ -145,6 +145,8 @@ model Rifle {
   cartridgeId   String?
   barrelLengthIn Float?
   twistRate     String?       // "1:8"
+  opticNotes    String?
+  zeroDistanceYd Float?
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -265,6 +267,7 @@ model RangeSession {
   esFps         Float?
   sdFps         Float?
   groupSizeIn   Float?
+  groupDistanceYd Float?
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
