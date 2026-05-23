@@ -59,6 +59,7 @@ model Workspace {
   powderMetadataRecords     PowderMetadataRecord[]
   barrelGeometryRecords     BarrelGeometryRecord[]
   chronoCalibrationRecords  ChronoCalibrationRecord[]
+  simulationRuns            SimulationRun[]
 
   @@index([ownerId])
 }
@@ -263,6 +264,7 @@ model Load {
   validationRecords        PressureValidationRecord[]
   caseCapacityMeasurements CaseCapacityMeasurement[]
   chronoCalibrationRecords ChronoCalibrationRecord[]  @relation("ChronoCalRefLoad")
+  simulationRuns           SimulationRun[]
 
   @@index([workspaceId, status])
   @@index([cartridgeId])
@@ -294,9 +296,10 @@ model RangeSession {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  load      Load?     @relation(fields: [loadId], references: [id], onDelete: SetNull)
-  rifle     Rifle?    @relation(fields: [rifleId], references: [id], onDelete: SetNull)
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  load           Load?           @relation(fields: [loadId], references: [id], onDelete: SetNull)
+  rifle          Rifle?          @relation(fields: [rifleId], references: [id], onDelete: SetNull)
+  simulationRuns SimulationRun[]
 
   @@index([workspaceId])
 }
@@ -434,6 +437,7 @@ model PressureModelVersion {
 
   workspace         Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   validationRecords PressureValidationRecord[]
+  simulationRuns    SimulationRun[]
 
   @@index([workspaceId])
 }
@@ -464,10 +468,11 @@ model PressureValidationRecord {
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
-  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  load         Load?                 @relation(fields: [loadId], references: [id], onDelete: SetNull)
-  source       Source?               @relation(fields: [sourceId], references: [id], onDelete: SetNull)
-  modelVersion PressureModelVersion? @relation(fields: [modelVersionId], references: [id], onDelete: SetNull)
+  workspace      Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  load           Load?                 @relation(fields: [loadId], references: [id], onDelete: SetNull)
+  source         Source?               @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  modelVersion   PressureModelVersion? @relation(fields: [modelVersionId], references: [id], onDelete: SetNull)
+  simulationRuns SimulationRun[]
 
   @@index([workspaceId, status])
   @@index([loadId])
@@ -611,4 +616,56 @@ model ChronoCalibrationRecord {
   referenceLoad Load?     @relation("ChronoCalRefLoad", fields: [referenceLoadId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
+}
+
+// =============================================================================
+// Simulation sandbox — NON-OPERATIONAL VALIDATION COMPARISON.
+// A SimulationRun records the outcome of comparing a user-entered reference
+// (or chrono session) against a placeholder PressureModelVersion. It stores
+// review status and velocity-delta bookkeeping only. NOTHING in this app
+// computes pressure predictions, recommends charges, or labels any load as
+// safe or unsafe. There is intentionally no predictedPressurePsi or
+// recommendedChargeGr field on this model.
+// =============================================================================
+
+enum SimulationRunStatus {
+  DRAFT
+  INPUT_INCOMPLETE
+  READY_FOR_EXPERT_REVIEW
+  REFERENCE_MATCHED_WITHIN_TOLERANCE
+  NEEDS_INVESTIGATION
+  REJECTED_BY_REVIEWER
+}
+
+model SimulationRun {
+  id                  String              @id @default(cuid())
+  workspaceId         String
+  modelVersionId      String
+  loadId              String?
+  validationRecordId  String?
+  rangeSessionId      String?
+  status              SimulationRunStatus @default(DRAFT)
+  // Comparison bookkeeping — velocity only. Pressure prediction is intentionally
+  // absent. Reference pressure (if any) lives on the linked PressureValidationRecord
+  // and is treated strictly as user-entered input, never as a computed output.
+  velocityDeltaFps    Float?
+  velocityDeltaPct    Float?
+  toleranceFps        Float?
+  tolerancePct        Float?
+  notes               String?
+  reviewerNotes       String?
+  acknowledgedExperimental Boolean        @default(false)
+  createdById         String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  workspace         Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  modelVersion      PressureModelVersion      @relation(fields: [modelVersionId], references: [id], onDelete: Cascade)
+  load              Load?                     @relation(fields: [loadId], references: [id], onDelete: SetNull)
+  validationRecord  PressureValidationRecord? @relation(fields: [validationRecordId], references: [id], onDelete: SetNull)
+  rangeSession      RangeSession?             @relation(fields: [rangeSessionId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([modelVersionId])
+  @@index([loadId])
 }

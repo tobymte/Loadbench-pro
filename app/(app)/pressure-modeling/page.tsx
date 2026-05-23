@@ -72,6 +72,7 @@ export default async function PressureModelingTestBenchPage() {
     powderMetadataCount,
     barrelGeometryCount,
     chronoCalibrationCount,
+    recentSimulationRuns,
   ] = await Promise.all([
     prisma.load.findMany({
       where: { workspaceId: ctx.workspaceId },
@@ -111,6 +112,14 @@ export default async function PressureModelingTestBenchPage() {
     prisma.chronoCalibrationRecord.count({
       where: { workspaceId: ctx.workspaceId },
     }),
+    prisma.simulationRun.findMany({
+      where: { workspaceId: ctx.workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      take: 5,
+      include: {
+        modelVersion: { select: { id: true, name: true } },
+      },
+    }),
   ]);
 
   const solverInputCounts = {
@@ -148,6 +157,56 @@ export default async function PressureModelingTestBenchPage() {
           </Link>
           .
         </div>
+
+        <Card>
+          <CardHeader
+            title="Simulation sandbox"
+            description="Velocity-only comparison of reference / chrono observations against placeholder model versions. Review-state bookkeeping only. No pressure prediction, no load advice."
+            actions={
+              <Link
+                href="/simulation-sandbox"
+                className="text-[12px] text-accent hover:text-accent-hover"
+                data-testid="link-simulation-sandbox"
+              >
+                Open sandbox →
+              </Link>
+            }
+          />
+          <CardBody>
+            {recentSimulationRuns.length === 0 ? (
+              <p
+                className="text-[12px] text-text-muted"
+                data-testid="pressure-modeling-simulation-empty"
+              >
+                No simulation runs yet. Reference data and chrono sessions
+                recorded in this workspace can be compared against placeholder
+                model versions in the sandbox.
+              </p>
+            ) : (
+              <ul
+                className="space-y-2"
+                data-testid="pressure-modeling-recent-simulations"
+              >
+                {recentSimulationRuns.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex items-center justify-between border-l-2 border-border pl-4 py-1 text-[12px]"
+                  >
+                    <span className="text-text">
+                      {r.modelVersion.name}
+                    </span>
+                    <span className="text-text-muted">
+                      {r.status} · Δ{' '}
+                      {r.velocityDeltaFps != null
+                        ? `${r.velocityDeltaFps >= 0 ? '+' : ''}${r.velocityDeltaFps.toFixed(1)} fps`
+                        : '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
 
         <Card>
           <CardHeader

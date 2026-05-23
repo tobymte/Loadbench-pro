@@ -33,6 +33,7 @@ const NAV: Array<{
       { href: '/ballistics', label: 'Ballistics' },
       { href: '/chrono-import', label: 'Chrono import' },
       { href: '/pressure-modeling', label: 'Pressure modeling', hint: 'Experimental' },
+      { href: '/simulation-sandbox', label: 'Simulation sandbox', hint: 'Non-operational' },
       { href: '/solver-inputs', label: 'Solver inputs', hint: 'Data capture' },
       { href: '/data-tools', label: 'Data tools' },
       { href: '/settings', label: 'Settings' },
