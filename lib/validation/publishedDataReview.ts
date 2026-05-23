@@ -62,6 +62,39 @@ export const publishedLoadRowDraftUpdateSchema = z.object({
   verificationAcknowledged: z.boolean().optional(),
 });
 
+// Batch-staging schema. Accepts an array of row drafts under a single import.
+// Server validates each row independently — invalid rows are reported but do
+// not block staging of the valid rows. Like the single-row form, rows created
+// here are NOT recommendations and are NOT permitted to enter at VERIFIED.
+export const publishedLoadRowDraftBatchRowSchema = z.object({
+  sourceId: z.string().min(1).optional().nullable(),
+  cartridgeId: z.string().min(1).optional().nullable(),
+  bulletComponentId: z.string().min(1).optional().nullable(),
+  powderComponentId: z.string().min(1).optional().nullable(),
+  pageLabel: z.string().max(120).optional().nullable(),
+  bulletWeightGr: z.number().positive().max(1000).optional().nullable(),
+  bulletName: z.string().max(240).optional().nullable(),
+  powderName: z.string().max(240).optional().nullable(),
+  chargeGr: z.number().positive().max(1000).optional().nullable(),
+  velocityFps: z.number().positive().max(10000).optional().nullable(),
+  isMaxLoad: z.boolean().optional(),
+  publishedMaxChargeGr: z.number().positive().max(1000).optional().nullable(),
+  colIn: z.number().positive().max(10).optional().nullable(),
+  bcG1: z.number().positive().max(2).optional().nullable(),
+  bcG7: z.number().positive().max(2).optional().nullable(),
+  notes: z.string().max(4000).optional().nullable(),
+});
+
+export const publishedLoadRowDraftBatchInputSchema = z.object({
+  importId: z.string().min(1),
+  sourceId: z.string().min(1).optional().nullable(),
+  cartridgeId: z.string().min(1).optional().nullable(),
+  rows: z
+    .array(publishedLoadRowDraftBatchRowSchema)
+    .min(1, { message: 'At least one row required.' })
+    .max(500, { message: 'Batch limited to 500 rows.' }),
+});
+
 // Schema for creating a Load draft from a VERIFIED row. The user must
 // explicitly acknowledge the safety disclaimer at the create action — we never
 // auto-inherit acknowledgement from the row verification step.

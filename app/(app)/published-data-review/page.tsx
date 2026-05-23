@@ -10,6 +10,7 @@ import {
   CreateLoadDraftFromRow,
 } from '@/components/forms/PublishedDataReviewActions';
 import { PublishedLoadRowDraftForm } from '@/components/forms/PublishedLoadRowDraftForm';
+import { BatchPublishedRowEntry } from '@/components/forms/BatchPublishedRowEntry';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,6 +153,30 @@ export default async function PublishedDataReviewPage() {
               powders={powders.map((p) => ({
                 id: p.id,
                 label: `${p.manufacturer} ${p.model}`,
+              }))}
+              sources={sources.map((s) => ({ id: s.id, label: s.title }))}
+            />
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Batch row entry"
+            description="Paste multiple rows from a published reference (CSV or TSV). Preview validates each row; staging creates draft rows under the chosen review set. Rows are never marked verified here."
+          />
+          <CardBody>
+            <BatchPublishedRowEntry
+              imports={imports.map((i) => ({ id: i.id, title: i.title }))}
+              cartridges={cartridges.map((c) => ({ id: c.id, label: c.name }))}
+              bullets={bullets.map((b) => ({
+                id: b.id,
+                manufacturer: b.manufacturer,
+                model: b.model,
+              }))}
+              powders={powders.map((p) => ({
+                id: p.id,
+                manufacturer: p.manufacturer,
+                model: p.model,
               }))}
               sources={sources.map((s) => ({ id: s.id, label: s.title }))}
             />
