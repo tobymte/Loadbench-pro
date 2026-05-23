@@ -29,6 +29,7 @@ const NAV: Array<{
   {
     group: 'Tools',
     items: [
+      { href: '/data-import', label: 'Guided data import', hint: 'Start here', title: 'One place to paste/import core data and route it to the right workflow' },
       { href: '/compare', label: 'Compare loads', title: 'Filterable side-by-side comparison of observed session data' },
       { href: '/ballistics', label: 'Ballistics estimate', title: 'Educational G1 trajectory from your inputs' },
       { href: '/chrono-import', label: 'Chrono import', title: 'Paste a chronograph CSV into a new range session' },

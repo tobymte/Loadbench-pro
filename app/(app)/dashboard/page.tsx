@@ -452,6 +452,20 @@ export default async function DashboardPage() {
           </Card>
         )}
 
+        <Card data-testid="dashboard-data-import-cta">
+          <CardHeader
+            title="Have data already?"
+            description="The Guided data import wizard takes pasted CSV/TSV and routes it to the right pipeline — published-manual rows for review, chronograph CSVs, component inventory, and solver-input measurements. Nothing is auto-marked safe."
+            actions={
+              <Link href="/data-import">
+                <Button size="sm" data-testid="dashboard-open-import">
+                  Open import wizard
+                </Button>
+              </Link>
+            }
+          />
+        </Card>
+
         <Card data-testid="dashboard-next-steps">
           <CardHeader
             title="Recommended setup path"

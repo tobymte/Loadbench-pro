@@ -44,6 +44,14 @@ type WizardStep = {
   href: string;
   ctaLabel: string;
   hint?: string;
+  // If the step supports bulk paste-in via the Guided Data Import Wizard,
+  // set this so the step row shows a secondary "Bulk import" link.
+  importWizardCategory?:
+    | 'published'
+    | 'inventory'
+    | 'caseCapacity'
+    | 'bulletMeta'
+    | 'powderMeta';
 };
 
 function SetupNotice({ message }: { message: string }) {
@@ -391,7 +399,7 @@ export default async function PressureEngineSetupWizardPage() {
                       </p>
                     )}
                   </div>
-                  <div className="shrink-0">
+                  <div className="shrink-0 flex flex-col items-end gap-1">
                     <Link href={step.href}>
                       <Button
                         type="button"
@@ -401,6 +409,15 @@ export default async function PressureEngineSetupWizardPage() {
                         {step.ctaLabel}
                       </Button>
                     </Link>
+                    {step.importWizardCategory && step.status !== 'ready' && (
+                      <Link
+                        href={`/data-import?category=${step.importWizardCategory}`}
+                        className="text-[11px] text-accent hover:text-accent-hover"
+                        data-testid={`pressure-engine-wizard-step-${step.id}-bulk-import`}
+                      >
+                        Bulk import →
+                      </Link>
+                    )}
                   </div>
                 </li>
               ))}
@@ -542,6 +559,7 @@ function buildSteps(d: ReadinessData): WizardStep[] {
       d.publishedTotalCount > 0 && d.publishedVerifiedCount === 0
         ? `${d.publishedTotalCount} draft row${d.publishedTotalCount === 1 ? '' : 's'} waiting for verification.`
         : undefined,
+    importWizardCategory: 'published',
   });
 
   steps.push({
@@ -600,6 +618,7 @@ function buildSteps(d: ReadinessData): WizardStep[] {
     href: '/solver-inputs',
     ctaLabel:
       d.caseCapacityCount > 0 ? 'Manage capacity' : 'Record measurement',
+    importWizardCategory: 'caseCapacity',
   });
 
   steps.push({
@@ -616,6 +635,7 @@ function buildSteps(d: ReadinessData): WizardStep[] {
       d.bulletDimensionCount > 0
         ? 'Manage dimensions'
         : 'Record bullet dimensions',
+    importWizardCategory: 'bulletMeta',
   });
 
   steps.push({
@@ -630,6 +650,7 @@ function buildSteps(d: ReadinessData): WizardStep[] {
     href: '/solver-inputs',
     ctaLabel:
       d.powderMetadataCount > 0 ? 'Manage metadata' : 'Record powder metadata',
+    importWizardCategory: 'powderMeta',
   });
 
   steps.push({
