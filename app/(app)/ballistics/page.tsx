@@ -2,6 +2,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { prisma } from '@/lib/db/prisma';
 import { getWorkspaceContext } from '@/lib/auth/workspace';
+import { getEngineUrl } from '@/lib/ballistics/engineClient';
 import { BallisticsCalculator } from './BallisticsCalculator';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,8 @@ export default async function BallisticsPage() {
     zeroDistanceYd: l.rifle?.zeroDistanceYd ?? null,
   }));
 
+  const engineConfigured = getEngineUrl() !== null;
+
   return (
     <>
       <Topbar title="Ballistics calculator" />
@@ -48,7 +51,7 @@ export default async function BallisticsPage() {
         <Card>
           <CardHeader
             title="External ballistics estimate"
-            description="Trajectory estimate from user-entered muzzle velocity, bullet weight, and G1 ballistic coefficient. Educational use only."
+            description="Trajectory, drop, drift, time of flight, retained velocity, and energy from a dedicated downrange-ballistics engine. External flight only — not pressure or load safety guidance."
           />
           <CardBody>
             <div
@@ -56,20 +59,60 @@ export default async function BallisticsPage() {
               data-testid="ballistics-disclaimer"
             >
               <div className="font-medium text-danger mb-1">
-                Educational external-ballistics estimate only.
+                External flight estimates only — not pressure / load safety guidance.
               </div>
               <p className="text-text-muted">
-                This calculator integrates a simplified flat-fire G1
-                trajectory from numbers <strong>you</strong> enter. It is
-                <strong> not</strong> a load engine. It does <strong>not</strong>{' '}
-                perform internal-ballistics or pressure prediction (QuickLOAD,
-                GRT, etc.). It does <strong>not</strong> validate the safety
-                of any load. Use it to estimate drop and drift for shooting
-                practice; verify against actual range data before relying on
-                any output.
+                These numbers describe how the bullet flies <strong>after</strong>{' '}
+                it leaves the muzzle: drop, drift, time of flight, retained
+                velocity, and energy. They are computed by a separate
+                downrange-ballistics engine (intended to wrap{' '}
+                <a
+                  href="https://github.com/gehtsoft-usa/BallisticCalculator1"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  BallisticCalculator1
+                </a>
+                , LGPL-2.1). This tool does <strong>not</strong> predict chamber
+                pressure or PSI, does <strong>not</strong> recommend charge
+                weights, does <strong>not</strong> issue safe/unsafe verdicts,
+                and does <strong>not</strong> suggest powder substitutions.
+                Verify against actual chronograph and target data.
               </p>
             </div>
-            <BallisticsCalculator prefills={prefills} />
+
+            {!engineConfigured && (
+              <div
+                className="mb-4 rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[12px] text-text"
+                data-testid="ballistics-unconfigured"
+              >
+                <div className="font-medium text-warning mb-1">
+                  Ballistics engine not configured.
+                </div>
+                <p className="text-text-muted">
+                  Set <code>BALLISTICS_ENGINE_URL</code> in <code>.env.local</code>{' '}
+                  to point at the downrange-ballistics service. To run it locally:
+                </p>
+                <pre className="mt-2 text-[11px] bg-bg-alt/60 p-2 rounded overflow-x-auto">
+{`cd services/ballistics-engine
+dotnet restore
+dotnet run            # listens on http://localhost:5080
+
+# then in the Next.js app's .env.local:
+BALLISTICS_ENGINE_URL=http://localhost:5080`}
+                </pre>
+                <p className="mt-2 text-text-muted">
+                  See <code>services/ballistics-engine/README.md</code> and the
+                  project README for hosting notes and LGPL attribution.
+                </p>
+              </div>
+            )}
+
+            <BallisticsCalculator
+              prefills={prefills}
+              engineConfigured={engineConfigured}
+            />
           </CardBody>
         </Card>
       </div>

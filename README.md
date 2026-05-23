@@ -124,6 +124,115 @@ Copy `.env.example` to `.env.local`. Never commit real secrets.
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL`         | optional             | Defaults to `/sign-up`.                                              |
 | `LOADBENCH_DISABLE_AUTH`                | optional             | `"true"` lets the scaffold render without Clerk; flip to `"false"` once Clerk is wired. |
 | `NEXT_PUBLIC_APP_NAME` / `..._APP_URL`  | optional             | Used for window titles / OG metadata.                                |
+| `BALLISTICS_ENGINE_URL`                 | for `/ballistics`    | URL of the separate .NET downrange-ballistics service. Blank ⇒ `/ballistics` shows setup help instead of crashing. |
+
+---
+
+## Ballistics engine (external/downrange only) — separate .NET service
+
+LoadBench Pro's `/ballistics` page is wired to a separate **.NET minimal-API
+service** under [`services/ballistics-engine/`](services/ballistics-engine/).
+That service is the integration point for
+[gehtsoft-usa/BallisticCalculator1](https://github.com/gehtsoft-usa/BallisticCalculator1),
+a LGPL-2.1 external-ballistics library.
+
+**Scope (intentional):**
+
+- Computes **external / downrange** quantities only: trajectory, drop, drift,
+  time of flight, retained velocity, and energy.
+- Does **not** predict chamber pressure / PSI.
+- Does **not** issue safe / unsafe verdicts.
+- Does **not** recommend charge weights or powder substitutions.
+- LoadBench Pro's internal pressure modeling remains **separate and
+  disabled** (see "Pressure engine — non-operational shell" below). The
+  ballistics engine never touches that surface.
+
+**Architecture:**
+
+```
++-------------------+        POST /api/ballistics/calculate        +-------------------------------+
+| Next.js (Vercel)  | --------------------------------------------> | Next.js route handler         |
+|  /ballistics UI   |                                               |  - validates user input (zod) |
++-------------------+                                               |  - drops non-external fields  |
+                                                                    +---------------+---------------+
+                                                                                    |
+                                                                                    | POST /v1/trajectory
+                                                                                    v
+                                                                    +-------------------------------+
+                                                                    | .NET service                  |
+                                                                    |  services/ballistics-engine/  |
+                                                                    |  wraps BallisticCalculator1   |
+                                                                    |  (LGPL-2.1)                   |
+                                                                    +-------------------------------+
+```
+
+### Running the .NET service locally
+
+```bash
+cd services/ballistics-engine
+dotnet restore
+dotnet run            # listens on http://localhost:5080
+```
+
+Health-check: `curl http://localhost:5080/health`.
+
+### Wiring the Next.js app to the service
+
+Add to `.env.local`:
+
+```
+BALLISTICS_ENGINE_URL=http://localhost:5080
+```
+
+Then start the Next.js app as usual (`npm run dev`) and open `/ballistics`.
+If `BALLISTICS_ENGINE_URL` is unset, the page renders setup instructions
+instead of crashing, and the internal API route returns `503
+service_unconfigured`.
+
+### Vercel / hosting notes
+
+- The Next.js app deploys to Vercel as before.
+- The .NET service does **not** deploy on Vercel. Host it on Azure App
+  Service, Fly.io, Railway, Render, or any container host that can run a
+  net8.0 ASP.NET Core app. Set `BALLISTICS_ENGINE_URL` in the Vercel project
+  environment to the engine's reachable URL.
+- The internal API route is the only intended caller of the engine. In
+  production, restrict the engine to private networking or add a
+  shared-secret header check.
+
+### Placeholder vs. real BallisticCalculator1
+
+The current `Program.cs` in `services/ballistics-engine/` ships a clearly
+marked `PlaceholderBallisticsCalculator` so the contract and UI work end to
+end without network access to NuGet. To swap in the real LGPL library, add a
+`PackageReference` to `BallisticCalculator` (or a `ProjectReference` to a
+cloned `BallisticCalculator1` source tree) and replace the placeholder with a
+real adapter — see [`services/ballistics-engine/README.md`](services/ballistics-engine/README.md)
+for the exact steps. The Next.js client and request/response DTOs are
+designed to stay unchanged across that swap.
+
+### License attribution (LGPL-2.1)
+
+This service is designed to wrap
+[gehtsoft-usa/BallisticCalculator1](https://github.com/gehtsoft-usa/BallisticCalculator1),
+which is distributed under the **GNU Lesser General Public License v2.1
+(LGPL-2.1)**. Once the real library is linked:
+
+- Preserve the upstream copyright and license notices in the deployed binary
+  and in any source you redistribute.
+- If you **modify** the library source, you must publish those modifications
+  under LGPL-2.1 and make them available to recipients of the deployed
+  binary.
+- Make the corresponding source of the library available to recipients of
+  the service binary (or include written instructions for obtaining it from
+  the upstream repository).
+- Keep the library a separable dependency — the LGPL "user can replace the
+  library" requirement is satisfied here because the engine is a separate
+  process the Next.js app reaches over HTTP, not statically linked into the
+  Next.js bundle.
+
+A short version of this attribution is shown to users on the `/ballistics`
+page.
 
 ---
 

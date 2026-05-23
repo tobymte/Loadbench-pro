@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>LoadBench.BallisticsEngine</RootNamespace>
+    <AssemblyName>BallisticsEngine</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    BallisticCalculator1 integration
+    ================================
+    BallisticCalculator1 (https://github.com/gehtsoft-usa/BallisticCalculator1)
+    is licensed LGPL-2.1. To enable real downrange ballistics output, add the
+    NuGet package below or reference the cloned source. Until then this
+    service returns clearly marked deterministic placeholder values so the
+    Next.js client and contract can be exercised end to end.
+
+    To wire the real library:
+      1. Add the package reference:
+           <PackageReference Include="BallisticCalculator" Version="2.*" />
+         (Confirm the latest published version on NuGet / GitHub.)
+      2. Replace the PlaceholderBallisticsCalculator implementation in
+         Program.cs with one that maps the request DTO into the library's
+         Ammunition / Rifle / Atmosphere / ShotParameters objects and
+         returns its TrajectoryPoint list.
+      3. Keep LGPL attribution in README / UI. If you modify the library
+         source, you must publish those modifications per LGPL-2.1.
+  -->
+
+</Project>
