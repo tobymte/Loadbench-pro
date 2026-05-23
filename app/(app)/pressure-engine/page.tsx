@@ -46,12 +46,65 @@ function statusTone(
   }
 }
 
-export default async function PressureEnginePage() {
-  const ctx = await getWorkspaceContext();
-  const entitlement = await getEntitlement(
-    ctx.workspaceId,
-    FEATURE_KEYS.PRESSURE_MODELING,
+function SetupNotice({ message }: { message: string }) {
+  return (
+    <>
+      <Topbar
+        title="Pressure engine"
+        actions={<Badge tone="warning">Setup required</Badge>}
+      />
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+        <div
+          className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[13px] text-text space-y-2"
+          data-testid="pressure-engine-setup-required"
+        >
+          <p>
+            <strong className="font-semibold">
+              Pressure engine workspace is not ready yet.
+            </strong>{' '}
+            The non-operational engine shell could not be loaded.
+          </p>
+          <p className="text-[12px] text-text-muted">{message}</p>
+          <p className="text-[12px] text-text-muted">
+            Typical fixes: run{' '}
+            <code className="text-accent">npx prisma migrate deploy</code> then{' '}
+            <code className="text-accent">npx prisma generate</code>, and
+            confirm <code className="text-accent">DATABASE_URL</code> is set.
+            Pressure prediction remains disabled regardless of setup state.
+          </p>
+        </div>
+      </div>
+    </>
   );
+}
+
+function describeError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return 'Unknown error.';
+  }
+}
+
+export default async function PressureEnginePage() {
+  let ctx: Awaited<ReturnType<typeof getWorkspaceContext>>;
+  try {
+    ctx = await getWorkspaceContext();
+  } catch (e) {
+    return <SetupNotice message={describeError(e)} />;
+  }
+
+  let entitlement: Awaited<ReturnType<typeof getEntitlement>>;
+  try {
+    entitlement = await getEntitlement(
+      ctx.workspaceId,
+      FEATURE_KEYS.PRESSURE_MODELING,
+    );
+  } catch (e) {
+    return <SetupNotice message={describeError(e)} />;
+  }
+
   const bigcommerceConfigured = isBigCommerceConfigured();
 
   if (!entitlement.hasAccess) {
@@ -98,63 +151,14 @@ export default async function PressureEnginePage() {
     );
   }
 
-  const [
-    modelVersions,
-    loads,
-    rangeSessions,
-    validationRecords,
-    engineRuns,
-  ] = await Promise.all([
-    prisma.pressureModelVersion.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        governanceStatus: true,
-        blockedOutputsPolicy: true,
-        validationNotes: true,
-        updatedAt: true,
-      },
-    }),
-    prisma.load.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { updatedAt: 'desc' },
-      select: { id: true, name: true },
-    }),
-    prisma.rangeSession.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { date: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        date: true,
-        avgVelocityFps: true,
-        load: { select: { name: true } },
-      },
-    }),
-    prisma.pressureValidationRecord.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        referenceLabel: true,
-        referenceVelocityFps: true,
-      },
-    }),
-    prisma.pressureEngineRun.findMany({
-      where: { workspaceId: ctx.workspaceId },
-      orderBy: { createdAt: 'desc' },
-      take: 25,
-      include: {
-        modelVersion: { select: { id: true, name: true } },
-        load: { select: { id: true, name: true } },
-        rangeSession: { select: { id: true, date: true } },
-        validationRecord: { select: { id: true, referenceLabel: true } },
-      },
-    }),
-  ]);
+  const queries = await loadPressureEngineData(ctx.workspaceId).catch(
+    (e: unknown) => ({ error: describeError(e) }) as const,
+  );
+  if ('error' in queries) {
+    return <SetupNotice message={queries.error} />;
+  }
+  const { modelVersions, loads, rangeSessions, validationRecords, engineRuns } =
+    queries;
 
   return (
     <>
@@ -416,4 +420,65 @@ function parseOutputs(raw: string | null): ParsedOutputs | null {
   } catch {
     return null;
   }
+}
+
+async function loadPressureEngineData(workspaceId: string) {
+  const [
+    modelVersions,
+    loads,
+    rangeSessions,
+    validationRecords,
+    engineRuns,
+  ] = await Promise.all([
+    prisma.pressureModelVersion.findMany({
+      where: { workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        governanceStatus: true,
+        blockedOutputsPolicy: true,
+        validationNotes: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.load.findMany({
+      where: { workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, name: true },
+    }),
+    prisma.rangeSession.findMany({
+      where: { workspaceId },
+      orderBy: { date: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        date: true,
+        avgVelocityFps: true,
+        load: { select: { name: true } },
+      },
+    }),
+    prisma.pressureValidationRecord.findMany({
+      where: { workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        referenceLabel: true,
+        referenceVelocityFps: true,
+      },
+    }),
+    prisma.pressureEngineRun.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+      include: {
+        modelVersion: { select: { id: true, name: true } },
+        load: { select: { id: true, name: true } },
+        rangeSession: { select: { id: true, date: true } },
+        validationRecord: { select: { id: true, referenceLabel: true } },
+      },
+    }),
+  ]);
+  return { modelVersions, loads, rangeSessions, validationRecords, engineRuns };
 }
