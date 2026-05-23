@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 
 const NAV: Array<{
   group: string;
-  items: Array<{ href: string; label: string; hint?: string; title?: string }>;
+  items: Array<{ href: string; label: string; hint?: string; title?: string; exact?: boolean }>;
 }> = [
   {
     group: 'Workspace',
@@ -39,11 +39,11 @@ const NAV: Array<{
   {
     group: 'Pressure engine',
     items: [
-      { href: '/pressure-engine', label: 'Pressure engine', hint: 'Premium', title: 'Controlled validation workspace — pressure prediction disabled' },
-      { href: '/pressure-engine/setup', label: 'Setup wizard', title: 'Readiness checklist before starting a validation run' },
-      { href: '/pressure-engine/new', label: 'New run', title: 'Run builder — non-operational, no PSI or charge advice' },
+      { href: '/pressure-engine', label: 'Overview', hint: 'Premium', title: 'Controlled validation workspace — pressure prediction disabled', exact: true },
+      { href: '/pressure-engine/setup', label: 'Setup wizard', hint: 'Setup', title: 'Readiness checklist before starting a validation run' },
+      { href: '/pressure-engine/new', label: 'New run', hint: 'Builder', title: 'Run builder — non-operational, no PSI or charge advice' },
       { href: '/pressure-modeling', label: 'Test bench', hint: 'Experimental', title: 'Pressure modeling validation infrastructure' },
-      { href: '/simulation-sandbox', label: 'Simulation sandbox', hint: 'Non-operational', title: 'Scenario sandbox — produces no pressure or charge output' },
+      { href: '/simulation-sandbox', label: 'Simulation sandbox', hint: 'Validation-only', title: 'Scenario sandbox — produces no pressure or charge output' },
     ],
   },
   {
@@ -104,10 +104,10 @@ export function Sidebar() {
             </div>
             <ul>
               {group.items.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  (item.href !== '/' && pathname.startsWith(item.href + '/')) ||
-                  (item.href !== '/' && pathname.startsWith(item.href));
+                const active = item.exact
+                  ? pathname === item.href
+                  : pathname === item.href ||
+                    (item.href !== '/' && pathname.startsWith(item.href + '/'));
                 return (
                   <li key={item.href}>
                     <Link
