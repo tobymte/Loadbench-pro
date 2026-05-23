@@ -52,6 +52,8 @@ model Workspace {
   importBatches ImportBatch[]
   printJobs   PrintJob[]
   fileObjects FileObject[]
+  pressureModelVersions    PressureModelVersion[]
+  pressureValidationRecords PressureValidationRecord[]
 
   @@index([ownerId])
 }
@@ -184,6 +186,7 @@ model Source {
 
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   loads         Load[]
+  validationRecords PressureValidationRecord[]
 
   @@index([workspaceId])
 }
@@ -246,6 +249,7 @@ model Load {
   rifle         Rifle?    @relation(fields: [rifleId], references: [id], onDelete: SetNull)
   source        Source?   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
   sessions      RangeSession[]
+  validationRecords PressureValidationRecord[]
 
   @@index([workspaceId, status])
   @@index([cartridgeId])
@@ -386,4 +390,72 @@ model FileObject {
   user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
+}
+
+// =============================================================================
+// Pressure modeling — EXPERIMENTAL VALIDATION INFRASTRUCTURE ONLY.
+// These tables exist so the team can record what a future, expert-validated
+// internal-ballistics model would have to ingest, and to capture reference
+// data (published or lab-measured) against which a future solver could be
+// checked. NOTHING in this app computes pressure from these rows. The fields
+// are stores, not formulas.
+// =============================================================================
+
+enum PressureModelStatus {
+  DRAFT
+  READY_FOR_EXPERT_REVIEW
+  BLOCKED
+  VALIDATED_REFERENCE
+  REJECTED
+}
+
+model PressureModelVersion {
+  id          String              @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  status      PressureModelStatus @default(DRAFT)
+  notes       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  validationRecords PressureValidationRecord[]
+
+  @@index([workspaceId])
+}
+
+model PressureValidationRecord {
+  id                   String              @id @default(cuid())
+  workspaceId          String
+  // Optional links to existing entities. Validation records can describe a
+  // pure published-reference data point with no in-workspace load to attach.
+  loadId               String?
+  sourceId             String?
+  modelVersionId       String?
+  // Human-readable label for the dataset row — e.g. "Hodgdon 2024 H4350 140gr 6.5CM max".
+  referenceLabel       String
+  // User-entered reference values from a licensed/published source or lab
+  // measurement. LoadBench Pro does not compute these. They are inputs to a
+  // future calibration check, never outputs of one.
+  referencePressurePsi Int?
+  referenceVelocityFps Float?
+  measuredVelocityFps  Float?
+  // Free-form JSON-encoded environmental / setup conditions (string for
+  // Postgres-provider portability, matches AuditEvent.payload convention).
+  conditionsJson       String?
+  status               PressureModelStatus @default(DRAFT)
+  notes                String?
+  // The user must check this acknowledgement before the row is saved.
+  acknowledged         Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  load         Load?                 @relation(fields: [loadId], references: [id], onDelete: SetNull)
+  source       Source?               @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  modelVersion PressureModelVersion? @relation(fields: [modelVersionId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([loadId])
 }

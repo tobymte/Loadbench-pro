@@ -2,323 +2,308 @@ import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { prisma } from '@/lib/db/prisma';
+import { getWorkspaceContext } from '@/lib/auth/workspace';
+import { solverReadinessChecklist } from '@/lib/analysis/pressureReadiness';
+import { PressureModelVersionForm } from '@/components/forms/PressureModelVersionForm';
+import { PressureValidationRecordForm } from '@/components/forms/PressureValidationRecordForm';
+import { LoadReadinessSelector } from '@/components/forms/LoadReadinessSelector';
 
 export const dynamic = 'force-dynamic';
 
-// This page is intentionally a roadmap/scaffold. It does NOT compute pressure,
-// recommend charges, or imply safety. No solver is wired up; inputs below are
-// disabled and exist only to communicate what a future, expert-validated tool
-// would need to ingest.
+// Experimental validation workspace.
+// This page is EXPLICITLY not a pressure predictor, not a charge recommender,
+// and not a safety judge. It captures structured notes and reference data so
+// that a future, expert-validated internal-ballistics model could one day be
+// evaluated. No code path on this route computes pressure values, recommends
+// charges, or marks any load as safe/unsafe.
 
-const REQUIRED_INPUTS: Array<{ group: string; items: string[] }> = [
-  {
-    group: 'Cartridge & case',
-    items: [
-      'Case capacity (gr H₂O) for the specific brass + sizing condition',
-      'Headspace and shoulder datum',
-      'Case wall taper and web thickness assumptions',
-    ],
-  },
-  {
-    group: 'Bullet',
-    items: [
-      'Bullet diameter, weight, bearing-surface length',
-      'Ogive profile and tangent/secant geometry',
-      'Seating depth (CBTO) and freebore engagement',
-    ],
-  },
-  {
-    group: 'Bore & barrel',
-    items: [
-      'Bore and groove dimensions',
-      'Throat geometry, leade angle',
-      'Barrel length and twist',
-    ],
-  },
-  {
-    group: 'Powder',
-    items: [
-      'Manufacturer-supplied burn-rate / progressivity characterization',
-      'Density and lot-specific calibration',
-      'Temperature sensitivity coefficient',
-    ],
-  },
-  {
-    group: 'Primer & ignition',
-    items: [
-      'Primer model and brisance class',
-      'Start-pressure assumption appropriate for the case/bullet',
-    ],
-  },
-  {
-    group: 'Environment & calibration',
-    items: [
-      'Ambient temperature',
-      'Chronograph data from observed loads (for calibration only, not safety)',
-      'Cross-references to pressure-tested published data',
-    ],
-  },
-];
+type StatusKey =
+  | 'DRAFT'
+  | 'READY_FOR_EXPERT_REVIEW'
+  | 'BLOCKED'
+  | 'VALIDATED_REFERENCE'
+  | 'REJECTED';
 
-const MILESTONES: Array<{
-  step: string;
-  title: string;
-  status: 'planned' | 'blocked' | 'future';
-  description: string;
-}> = [
-  {
-    step: 'M1',
-    title: 'Data model for pressure-relevant inputs',
-    status: 'planned',
-    description:
-      'Add structured columns for case capacity, throat geometry, bullet bearing surface, and powder calibration metadata. Recordkeeping only — no computation.',
-  },
-  {
-    step: 'M2',
-    title: 'Calibration record store',
-    status: 'planned',
-    description:
-      'Capture chronograph + pressure-tested reference data so any future model can be checked against observed reality before it is allowed to display anything.',
-  },
-  {
-    step: 'M3',
-    title: 'Non-authoritative simulation sandbox',
-    status: 'blocked',
-    description:
-      'A clearly-labeled, isolated sandbox a user could run hypotheticals in. Outputs would be unsigned, non-numeric, and never presented as a load recommendation. Blocked on expert review.',
-  },
-  {
-    step: 'M4',
-    title: 'Validation suite',
-    status: 'future',
-    description:
-      'Automated comparison against an authoritative published-load corpus with documented variance bounds. Failures would gate the entire feature off.',
-  },
-  {
-    step: 'M5',
-    title: 'Expert review & sign-off',
-    status: 'future',
-    description:
-      'External ballistician + reloading-safety review of inputs, calibration, and presentation. Without sign-off, the feature stays disabled in production.',
-  },
-];
+const STATUS_LABEL: Record<StatusKey, string> = {
+  DRAFT: 'Draft',
+  READY_FOR_EXPERT_REVIEW: 'Ready for expert review',
+  BLOCKED: 'Blocked',
+  VALIDATED_REFERENCE: 'Validated reference',
+  REJECTED: 'Rejected',
+};
 
-const DISABLED_INPUTS = [
-  { label: 'Case capacity (gr H₂O)', placeholder: 'e.g. 52.5' },
-  { label: 'Bullet weight (gr)', placeholder: 'e.g. 140' },
-  { label: 'Bullet bearing-surface (in)', placeholder: 'e.g. 0.380' },
-  { label: 'Seating depth CBTO (in)', placeholder: 'e.g. 2.230' },
-  { label: 'Bore diameter (in)', placeholder: 'e.g. 0.264' },
-  { label: 'Barrel length (in)', placeholder: 'e.g. 24' },
-  { label: 'Powder lot calibration ref', placeholder: 'lot id' },
-  { label: 'Primer model', placeholder: 'e.g. CCI BR-2' },
-  { label: 'Ambient temperature (°F)', placeholder: 'e.g. 60' },
-  { label: 'Start-pressure assumption (psi)', placeholder: 'expert-set' },
-];
+function statusTone(
+  s: StatusKey,
+): 'neutral' | 'accent' | 'success' | 'warning' | 'danger' {
+  switch (s) {
+    case 'DRAFT':
+      return 'neutral';
+    case 'READY_FOR_EXPERT_REVIEW':
+      return 'accent';
+    case 'BLOCKED':
+      return 'warning';
+    case 'VALIDATED_REFERENCE':
+      return 'success';
+    case 'REJECTED':
+      return 'danger';
+  }
+}
 
-export default function PressureModelingPage() {
+function checklistTone(
+  status: 'planned' | 'in-progress' | 'blocked' | 'complete',
+): 'neutral' | 'accent' | 'success' | 'warning' {
+  if (status === 'complete') return 'success';
+  if (status === 'in-progress') return 'accent';
+  if (status === 'blocked') return 'warning';
+  return 'neutral';
+}
+
+export default async function PressureModelingTestBenchPage() {
+  const ctx = await getWorkspaceContext();
+
+  const [loads, sources, modelVersions, validationRecords] = await Promise.all([
+    prisma.load.findMany({
+      where: { workspaceId: ctx.workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, name: true },
+    }),
+    prisma.source.findMany({
+      where: { workspaceId: ctx.workspaceId },
+      orderBy: { title: 'asc' },
+      select: { id: true, title: true },
+    }),
+    prisma.pressureModelVersion.findMany({
+      where: { workspaceId: ctx.workspaceId },
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.pressureValidationRecord.findMany({
+      where: { workspaceId: ctx.workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        load: { select: { id: true, name: true } },
+        source: { select: { id: true, title: true } },
+        modelVersion: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
+
+  const checklist = solverReadinessChecklist();
+
   return (
     <>
       <Topbar
-        title="Pressure Modeling Lab"
-        actions={<Badge tone="danger">Disabled in MVP</Badge>}
+        title="Pressure modeling test bench"
+        actions={<Badge tone="warning">Experimental</Badge>}
       />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
-        <Card>
-          <CardHeader
-            title="Why this is disabled"
-            description="Why LoadBench Pro will not ship a working internal-ballistics solver in its current state."
-          />
-          <CardBody>
-            <p className="text-sm text-text-muted leading-relaxed">
-              Tools like QuickLOAD and GRT are useful in expert hands, but they
-              are <strong>predictions</strong> that depend on accurate inputs,
-              lot-specific calibration, and a user who understands their
-              uncertainty. A general-purpose “safe load” calculator embedded in
-              a notebook app is a hazard, not a feature. We are intentionally
-              keeping LoadBench Pro on the recordkeeping side of that line.
-            </p>
-            <ul className="mt-4 text-sm text-text-muted leading-relaxed list-disc pl-5 space-y-1">
-              <li>
-                We do <strong>not</strong> compute internal pressure.
-              </li>
-              <li>
-                We do <strong>not</strong> recommend charge weights, COAL, or
-                seating depth.
-              </li>
-              <li>
-                We do <strong>not</strong> propose powder substitutions.
-              </li>
-              <li>
-                We do <strong>not</strong> mark any load as “safe” or “unsafe.”
-              </li>
-            </ul>
-          </CardBody>
-        </Card>
+        <div
+          className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[13px] text-text"
+          data-testid="pressure-modeling-warning"
+        >
+          <strong className="font-semibold">
+            Experimental validation workspace — not a pressure predictor, not
+            load advice.
+          </strong>{' '}
+          Nothing on this page computes pressure, recommends a charge, or marks
+          any load as safe or unsafe. Records here are structured notes the
+          team uses to build the validation infrastructure a future
+          internal-ballistics model would have to pass before it could ever be
+          enabled. See the{' '}
+          <Link href="/safety" className="text-accent hover:text-accent-hover">
+            safety policy
+          </Link>
+          .
+        </div>
 
         <Card>
           <CardHeader
-            title="Required inputs for a future, validated model"
-            description="What a real internal-ballistics solver would need to ingest before any output could be defensible."
+            title="Solver readiness checklist"
+            description="Project-level gates that must be passed before any pressure solver could be considered for enablement. Documentation, not a toggle."
           />
           <CardBody>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {REQUIRED_INPUTS.map((group) => (
-                <div key={group.group}>
-                  <div className="text-[11px] uppercase tracking-wider text-text-faint mb-2">
-                    {group.group}
-                  </div>
-                  <ul className="text-sm text-text-muted leading-relaxed list-disc pl-5 space-y-1">
-                    {group.items.map((it) => (
-                      <li key={it}>{it}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Input checklist (read-only)"
-            description="The shape of the input form a future solver would expose. All fields are disabled — nothing is computed or stored from this page."
-            actions={<Badge tone="warning">Read-only</Badge>}
-          />
-          <CardBody>
-            <fieldset disabled className="opacity-60 pointer-events-none">
-              <div
-                className="grid grid-cols-1 md:grid-cols-2 gap-4"
-                data-testid="pressure-modeling-disabled-inputs"
-              >
-                {DISABLED_INPUTS.map((f) => (
-                  <div key={f.label}>
-                    <label htmlFor={`pm-${f.label}`}>{f.label}</label>
-                    <input
-                      id={`pm-${f.label}`}
-                      placeholder={f.placeholder}
-                      disabled
-                      aria-disabled="true"
-                    />
-                  </div>
-                ))}
-              </div>
-            </fieldset>
-            <p className="mt-4 text-[12px] text-text-faint">
-              Disabled by design. There is no submit action. There is no
-              computation. There is no output.
-            </p>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Validation workflow (planned)"
-            description="How outputs would be checked before any user could see them."
-          />
-          <CardBody>
-            <ol className="text-sm text-text-muted leading-relaxed list-decimal pl-5 space-y-2">
-              <li>
-                Maintain a curated corpus of pressure-tested published loads
-                from primary manufacturers and laboratories.
-              </li>
-              <li>
-                For every candidate model run, compare predicted velocity and
-                pressure against the corpus and against the user’s logged
-                chronograph data — never the other way around.
-              </li>
-              <li>
-                Reject any prediction whose deviation exceeds documented
-                variance bounds; show calibration failure, not numbers.
-              </li>
-              <li>
-                Require expert reviewers to sign off on the calibration
-                methodology before the feature is enabled in production.
-              </li>
-            </ol>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Safety boundaries"
-            description="Lines this feature will not cross, even once enabled."
-          />
-          <CardBody>
-            <ul className="text-sm text-text-muted leading-relaxed list-disc pl-5 space-y-1">
-              <li>No load recommendations.</li>
-              <li>No safe / unsafe claims.</li>
-              <li>
-                No pressure predictions outside a clearly-labeled,
-                expert-validated calibration envelope.
-              </li>
-              <li>
-                No removal of the requirement that the user cite a published
-                source for any charge-bearing load (see{' '}
-                <Link
-                  href="/safety"
-                  className="text-accent hover:text-accent-hover"
-                >
-                  safety policy
-                </Link>
-                ).
-              </li>
-              <li>
-                No suggestion that this app replaces independent pressure
-                testing, manufacturer data, or expert review.
-              </li>
-            </ul>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Planned milestones"
-            description="How and in what order pressure-modeling capability would be built — if it is built at all."
-          />
-          <CardBody>
-            <div className="space-y-4">
-              {MILESTONES.map((m) => (
-                <div
-                  key={m.step}
+            <ul
+              className="space-y-3"
+              data-testid="solver-readiness-checklist"
+            >
+              {checklist.map((item) => (
+                <li
+                  key={item.key}
                   className="border-l-2 border-border pl-4 py-1"
+                  data-testid={`solver-readiness-${item.key}`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] uppercase tracking-wider text-text-faint font-medium">
-                      {m.step}
-                    </span>
                     <span className="text-sm font-semibold text-text">
-                      {m.title}
+                      {item.label}
                     </span>
-                    <Badge
-                      tone={
-                        m.status === 'planned'
-                          ? 'accent'
-                          : m.status === 'blocked'
-                            ? 'warning'
-                            : 'neutral'
-                      }
-                    >
-                      {m.status}
+                    <Badge tone={checklistTone(item.status)}>
+                      {item.status}
                     </Badge>
                   </div>
-                  <p className="mt-1 text-sm text-text-muted leading-relaxed">
-                    {m.description}
-                  </p>
-                </div>
+                  {item.detail && (
+                    <p className="mt-1 text-[12px] text-text-muted leading-relaxed">
+                      {item.detail}
+                    </p>
+                  )}
+                </li>
               ))}
+            </ul>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Load input completeness"
+            description="Pick a load to see which inputs a future model would need. This is a readiness checklist, not a pressure prediction."
+          />
+          <CardBody>
+            {loads.length === 0 ? (
+              <p className="text-[12px] text-text-muted">
+                No loads in this workspace yet. Record a load first to assess
+                input completeness.
+              </p>
+            ) : (
+              <LoadReadinessSelector loads={loads} />
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Capture a validation dataset row"
+            description="Record user-entered published or lab-measured reference data. These rows are inputs to a future calibration check — never outputs of one."
+            actions={<Badge tone="warning">Acknowledgement required</Badge>}
+          />
+          <CardBody>
+            <PressureValidationRecordForm
+              loads={loads}
+              sources={sources}
+              modelVersions={modelVersions.map((m) => ({
+                id: m.id,
+                name: m.name,
+              }))}
+            />
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Model version registry"
+            description="A list of candidate model identities and their review status. Versions are documentation; this app does not execute any of them."
+          />
+          <CardBody>
+            <div className="space-y-6">
+              <PressureModelVersionForm />
+
+              {modelVersions.length === 0 ? (
+                <p className="text-[12px] text-text-muted">
+                  No model versions recorded yet.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table data-testid="pressure-model-versions-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Description</th>
+                        <th>Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modelVersions.map((m) => (
+                        <tr key={m.id}>
+                          <td className="text-text">{m.name}</td>
+                          <td>
+                            <Badge tone={statusTone(m.status as StatusKey)}>
+                              {STATUS_LABEL[m.status as StatusKey]}
+                            </Badge>
+                          </td>
+                          <td className="text-text-muted">
+                            {m.description ?? '—'}
+                          </td>
+                          <td className="text-text-faint">
+                            {new Date(m.updatedAt).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Test run log"
+            description="Status of each validation dataset row. Computed pressure values are intentionally not displayed."
+            actions={<Badge tone="neutral">Status only</Badge>}
+          />
+          <CardBody>
+            {validationRecords.length === 0 ? (
+              <p
+                className="text-[12px] text-text-muted"
+                data-testid="pressure-validation-empty"
+              >
+                No validation records yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table data-testid="pressure-validation-records-table">
+                  <thead>
+                    <tr>
+                      <th>Reference label</th>
+                      <th>Status</th>
+                      <th>Load</th>
+                      <th>Source</th>
+                      <th>Model version</th>
+                      <th>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {validationRecords.map((r) => (
+                      <tr key={r.id}>
+                        <td className="text-text">{r.referenceLabel}</td>
+                        <td>
+                          <Badge tone={statusTone(r.status as StatusKey)}>
+                            {STATUS_LABEL[r.status as StatusKey]}
+                          </Badge>
+                        </td>
+                        <td className="text-text-muted">
+                          {r.load?.name ?? '—'}
+                        </td>
+                        <td className="text-text-muted">
+                          {r.source?.title ?? '—'}
+                        </td>
+                        <td className="text-text-muted">
+                          {r.modelVersion?.name ?? '—'}
+                        </td>
+                        <td className="text-text-faint">
+                          {new Date(r.updatedAt).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-3 text-[11px] text-text-faint">
+              This log intentionally omits any computed pressure prediction.
+              Statuses describe review state only — never safety.
+            </p>
           </CardBody>
         </Card>
 
         <Card>
           <CardBody>
             <p className="text-[11px] text-text-faint leading-relaxed">
-              This page is a roadmap and a safety boundary, not a tool. It does
-              not predict pressure, recommend charges, or certify any load.
-              Until expert validation, calibration data, and a passing
-              validation suite are all in place, no solver will be exposed
-              here.
+              This page is a structured note-taking surface for experimental
+              pressure-modeling validation. It does not predict pressure,
+              recommend charges, propose powder substitutions, or certify any
+              load. Until expert validation, documented variance bounds, and
+              corpus coverage are all in place, no solver will be enabled.
             </p>
           </CardBody>
         </Card>
