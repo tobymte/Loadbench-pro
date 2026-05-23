@@ -5,7 +5,16 @@
  *   1. A "charge-bearing save" (any record where chargeGr is set) MUST cite a
  *      published Source. Drafts with no chargeGr can be saved without a source.
  *   2. A charge-bearing save MUST have safetyAcknowledged === true.
- *   3. chargeGr MUST NOT exceed the cited Source.publishedMaxGr.
+ *   3. chargeGr MUST NOT exceed the cited published maximum. The published
+ *      max may be either:
+ *        a) a row-specific published max supplied on the payload as
+ *           `publishedMaxChargeGr` (e.g. when a Load is being created from a
+ *           verified PublishedLoadRowDraft that records its own row maximum),
+ *           OR
+ *        b) the cited `Source.publishedMaxGr` (the source-wide max).
+ *      If a row-specific max is supplied on the payload it takes precedence
+ *      over the source-wide max for the charge ceiling check. If no
+ *      row-specific max is supplied, the source-wide max is required.
  *   4. We NEVER suggest replacement / corrected values. Errors describe what
  *      the user must change; we do not return a recommended charge.
  *
@@ -32,6 +41,14 @@ export const loadInputSchema = z.object({
   caseTrimLengthIn: z.number().positive().optional().nullable(),
   neckTensionThou: z.number().min(0).optional().nullable(),
 
+  // Row-specific published maximum charge, when this Load is being created
+  // from a verified PublishedLoadRowDraft that supplies its own row maximum.
+  // When supplied, it overrides Source.publishedMaxGr for the charge ceiling.
+  publishedMaxChargeGr: z.number().positive().optional().nullable(),
+  // Citation context captured alongside a row-specific max.
+  publishedDataRowId: z.string().optional().nullable(),
+  sourcePageLabel: z.string().max(240).optional().nullable(),
+
   safetyAcknowledged: z.boolean().default(false),
   safetyNotes: z.string().max(2000).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
@@ -51,6 +68,7 @@ export type ValidationIssue = {
     | 'SOURCE_REQUIRED_FOR_CHARGE'
     | 'ACK_REQUIRED_FOR_CHARGE'
     | 'CHARGE_EXCEEDS_PUBLISHED_MAX'
+    | 'CHARGE_EXCEEDS_ROW_PUBLISHED_MAX'
     | 'SOURCE_MISSING_PUBLISHED_MAX';
   message: string;
 };
@@ -64,6 +82,10 @@ export type ValidationResult =
  *
  * `source` is optional: callers should resolve it from `sourceId` before
  * calling this helper so the validation can compare chargeGr to publishedMax.
+ *
+ * If the payload carries a `publishedMaxChargeGr` (row-specific maximum from
+ * a verified PublishedLoadRowDraft), the charge ceiling is checked against
+ * that row-specific value and the source-wide max is not required.
  */
 export function validateLoad(
   input: unknown,
@@ -84,6 +106,9 @@ export function validateLoad(
   const data = parsed.data;
   const issues: ValidationIssue[] = [];
   const isChargeBearing = data.chargeGr !== null && data.chargeGr !== undefined;
+  const hasRowMax =
+    data.publishedMaxChargeGr !== null &&
+    data.publishedMaxChargeGr !== undefined;
 
   if (isChargeBearing) {
     if (!data.sourceId) {
@@ -104,13 +129,24 @@ export function validateLoad(
       });
     }
 
-    if (data.sourceId && source) {
+    if (hasRowMax) {
+      // Row-specific max takes precedence over source-wide max.
+      if ((data.chargeGr ?? 0) > (data.publishedMaxChargeGr ?? 0)) {
+        issues.push({
+          field: 'chargeGr',
+          code: 'CHARGE_EXCEEDS_ROW_PUBLISHED_MAX',
+          // We intentionally do NOT suggest a corrected charge.
+          message:
+            'Charge exceeds the published maximum recorded on the cited published row. LoadBench Pro will not save loads above a cited published maximum.',
+        });
+      }
+    } else if (data.sourceId && source) {
       if (source.publishedMaxGr === null || source.publishedMaxGr === undefined) {
         issues.push({
           field: 'sourceId',
           code: 'SOURCE_MISSING_PUBLISHED_MAX',
           message:
-            'The cited Source does not record a published maximum charge. Update the Source with the published max before saving a charge weight.',
+            'The cited Source does not record a published maximum charge. Update the Source with the published max, or cite a verified published row that records its own row maximum, before saving a charge weight.',
         });
       } else if ((data.chargeGr ?? 0) > source.publishedMaxGr) {
         issues.push({

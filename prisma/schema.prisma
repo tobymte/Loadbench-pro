@@ -243,6 +243,16 @@ model Load {
   cartridgeBaseToOgiveIn Float?
   caseTrimLengthIn       Float?
   neckTensionThou        Float? // .001"
+  // Row-specific published maximum charge captured from a verified
+  // PublishedLoadRowDraft. When set, validateLoad uses this in preference to
+  // Source.publishedMaxGr because source-level max is too coarse for tables
+  // with per-bullet/per-powder published maxima.
+  publishedMaxChargeGr   Float?
+  // Optional reference back to the verified published row this Load was
+  // created from. Free-form citation context (page label) is captured in
+  // sourcePageLabel rather than stuffed into notes.
+  publishedDataRowId     String?
+  sourcePageLabel        String?
   // The user must explicitly check this before saving a charge-bearing load.
   safetyAcknowledged     Boolean @default(false)
   // Free-form note for safety context (e.g. "starting load, working up").
@@ -264,6 +274,7 @@ model Load {
   case_                    Component?                 @relation("LoadCase", fields: [caseId], references: [id])
   rifle                    Rifle?                     @relation(fields: [rifleId], references: [id], onDelete: SetNull)
   source                   Source?                    @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  publishedDataRow         PublishedLoadRowDraft?     @relation("LoadPublishedRow", fields: [publishedDataRowId], references: [id], onDelete: SetNull)
   sessions                 RangeSession[]
   validationRecords        PressureValidationRecord[]
   caseCapacityMeasurements CaseCapacityMeasurement[]
@@ -733,6 +744,12 @@ model PublishedLoadRowDraft {
   chargeGr           Float?
   velocityFps        Float?
   isMaxLoad          Boolean                @default(false)
+  // Row-specific published maximum charge for this transcribed row. Many
+  // published tables list a per-row maximum (e.g. one bullet/powder pair has
+  // a different max than the source-wide max). This is independent of
+  // Source.publishedMaxGr and is the value validateLoad checks against when
+  // a Load is created from this verified row.
+  publishedMaxChargeGr Float?
   colIn              Float?
   bcG1               Float?
   bcG7               Float?
@@ -747,6 +764,7 @@ model PublishedLoadRowDraft {
   workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   import    PublishedDataImport  @relation(fields: [importId], references: [id], onDelete: Cascade)
   source    Source?              @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  loads     Load[]               @relation("LoadPublishedRow")
 
   @@index([workspaceId, status])
   @@index([importId])

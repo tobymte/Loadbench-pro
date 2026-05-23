@@ -59,6 +59,7 @@ export default async function LoadsPage() {
                   <th>Bullet</th>
                   <th>Powder</th>
                   <th className="text-right">Charge (gr)</th>
+                  <th className="text-right">Published max (row, gr)</th>
                   <th>Source</th>
                   <th>Status</th>
                 </tr>
@@ -83,6 +84,12 @@ export default async function LoadsPage() {
                     </td>
                     <td className="text-right tabular-nums">
                       {r.chargeGr ?? '—'}
+                    </td>
+                    <td
+                      className="text-right tabular-nums"
+                      data-testid={`loads-row-${r.id}-row-published-max`}
+                    >
+                      {r.publishedMaxChargeGr ?? '—'}
                     </td>
                     <td className="text-text-muted">{r.source?.title ?? '—'}</td>
                     <td>

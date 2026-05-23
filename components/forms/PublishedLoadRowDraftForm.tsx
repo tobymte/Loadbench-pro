@@ -47,6 +47,7 @@ export function PublishedLoadRowDraftForm({
       chargeGr: numberOrNull(fd.get('chargeGr')),
       velocityFps: numberOrNull(fd.get('velocityFps')),
       isMaxLoad: fd.get('isMaxLoad') === 'on',
+      publishedMaxChargeGr: numberOrNull(fd.get('publishedMaxChargeGr')),
       colIn: numberOrNull(fd.get('colIn')),
       bcG1: numberOrNull(fd.get('bcG1')),
       bcG7: numberOrNull(fd.get('bcG7')),
@@ -272,6 +273,20 @@ export function PublishedLoadRowDraftForm({
             inputMode="decimal"
           />
         </div>
+        <div>
+          <label htmlFor="publishedMaxChargeGr">
+            Published max charge (gr)
+          </label>
+          <input
+            id="publishedMaxChargeGr"
+            name="publishedMaxChargeGr"
+            type="number"
+            step="0.01"
+            inputMode="decimal"
+            placeholder="row-specific max from source"
+            data-testid="published-row-max-charge"
+          />
+        </div>
         <div className="flex items-end">
           <label className="inline-flex items-center gap-2 text-[13px] text-text">
             <input
@@ -283,6 +298,18 @@ export function PublishedLoadRowDraftForm({
           </label>
         </div>
       </div>
+
+      <p
+        className="text-[11px] text-text-faint leading-relaxed"
+        data-testid="published-row-max-help"
+      >
+        If you record a <em>Published max charge</em>, that row-specific value
+        is what the load draft validator checks against — independent of the
+        Source-wide max. If you check <em>Marked max charge in source</em> and
+        leave the published max blank, this transcribed row is treated as the
+        row maximum after verification (the charge will be used as the row
+        max).
+      </p>
 
       <div>
         <label htmlFor="notes">Notes</label>

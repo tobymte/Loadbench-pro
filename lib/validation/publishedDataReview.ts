@@ -31,6 +31,10 @@ export const publishedLoadRowDraftInputSchema = z.object({
   chargeGr: z.number().positive().max(1000).optional().nullable(),
   velocityFps: z.number().positive().max(10000).optional().nullable(),
   isMaxLoad: z.boolean().optional(),
+  // Row-specific published maximum charge transcribed from the source.
+  // Independent of Source.publishedMaxGr; the row's own max is what
+  // validateLoad checks against when a Load is created from this row.
+  publishedMaxChargeGr: z.number().positive().max(1000).optional().nullable(),
   colIn: z.number().positive().max(10).optional().nullable(),
   bcG1: z.number().positive().max(2).optional().nullable(),
   bcG7: z.number().positive().max(2).optional().nullable(),
@@ -47,6 +51,7 @@ export const publishedLoadRowDraftUpdateSchema = z.object({
   chargeGr: z.number().positive().max(1000).optional().nullable(),
   velocityFps: z.number().positive().max(10000).optional().nullable(),
   isMaxLoad: z.boolean().optional(),
+  publishedMaxChargeGr: z.number().positive().max(1000).optional().nullable(),
   colIn: z.number().positive().max(10).optional().nullable(),
   bcG1: z.number().positive().max(2).optional().nullable(),
   bcG7: z.number().positive().max(2).optional().nullable(),

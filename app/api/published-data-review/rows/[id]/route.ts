@@ -81,6 +81,9 @@ export async function PATCH(
         ? { velocityFps: data.velocityFps }
         : {}),
       ...(data.isMaxLoad !== undefined ? { isMaxLoad: data.isMaxLoad } : {}),
+      ...(data.publishedMaxChargeGr !== undefined
+        ? { publishedMaxChargeGr: data.publishedMaxChargeGr }
+        : {}),
       ...(data.colIn !== undefined ? { colIn: data.colIn } : {}),
       ...(data.bcG1 !== undefined ? { bcG1: data.bcG1 } : {}),
       ...(data.bcG7 !== undefined ? { bcG7: data.bcG7 } : {}),

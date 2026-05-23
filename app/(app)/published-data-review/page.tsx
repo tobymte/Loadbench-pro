@@ -61,7 +61,7 @@ export default async function PublishedDataReviewPage() {
       take: 100,
       include: {
         import: { select: { id: true, title: true } },
-        source: { select: { id: true, title: true } },
+        source: { select: { id: true, title: true, publishedMaxGr: true } },
       },
     }),
     prisma.cartridge.findMany({
@@ -221,9 +221,11 @@ export default async function PublishedDataReviewPage() {
                   <th>Status</th>
                   <th>Set</th>
                   <th>Page</th>
+                  <th>Source</th>
                   <th>Bullet</th>
                   <th>Powder</th>
                   <th className="text-right">Charge (gr)</th>
+                  <th className="text-right">Row max (gr)</th>
                   <th className="text-right">Velocity (fps)</th>
                   <th>Max?</th>
                   <th>Verified</th>
@@ -251,11 +253,24 @@ export default async function PublishedDataReviewPage() {
                         </Badge>
                       </td>
                       <td>{r.import.title}</td>
-                      <td>{r.pageLabel ?? '—'}</td>
+                      <td data-testid={`published-row-${r.id}-page`}>
+                        {r.pageLabel ?? '—'}
+                      </td>
+                      <td>{r.source?.title ?? '—'}</td>
                       <td>{bullet}</td>
                       <td>{powder}</td>
                       <td className="text-right">
                         {r.chargeGr != null ? r.chargeGr : '—'}
+                      </td>
+                      <td
+                        className="text-right"
+                        data-testid={`published-row-${r.id}-rowmax`}
+                      >
+                        {r.publishedMaxChargeGr != null
+                          ? r.publishedMaxChargeGr
+                          : r.isMaxLoad && r.chargeGr != null
+                            ? `${r.chargeGr} *`
+                            : '—'}
                       </td>
                       <td className="text-right">
                         {r.velocityFps != null ? r.velocityFps : '—'}
@@ -278,6 +293,12 @@ export default async function PublishedDataReviewPage() {
                             hasPowder={r.powderComponentId != null}
                             hasSource={r.sourceId != null}
                             hasCharge={r.chargeGr != null}
+                            rowPublishedMaxChargeGr={r.publishedMaxChargeGr ?? null}
+                            rowChargeGr={r.chargeGr ?? null}
+                            isMaxLoad={r.isMaxLoad}
+                            sourcePublishedMaxGr={
+                              r.source?.publishedMaxGr ?? null
+                            }
                           />
                         ) : (
                           <span
@@ -294,6 +315,21 @@ export default async function PublishedDataReviewPage() {
                 })}
               </tbody>
             </table>
+          )}
+          {rows.length > 0 && (
+            <CardBody>
+              <p
+                className="text-[11px] text-text-faint leading-relaxed"
+                data-testid="published-rows-rowmax-legend"
+              >
+                A <em>Row max</em> value shown with a trailing <code>*</code>
+                {' '}means the row is marked maximum in the source and no
+                separate published max was transcribed — the row charge is
+                treated as the row maximum after verification. Row max is the
+                value the load-draft validator checks against; it is
+                independent of the Source-wide max.
+              </p>
+            </CardBody>
           )}
         </Card>
 

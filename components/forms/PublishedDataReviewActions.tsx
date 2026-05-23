@@ -264,6 +264,10 @@ export function CreateLoadDraftFromRow({
   hasPowder,
   hasSource,
   hasCharge,
+  rowPublishedMaxChargeGr,
+  rowChargeGr,
+  isMaxLoad,
+  sourcePublishedMaxGr,
 }: {
   id: string;
   hasCartridge: boolean;
@@ -271,6 +275,10 @@ export function CreateLoadDraftFromRow({
   hasPowder: boolean;
   hasSource: boolean;
   hasCharge: boolean;
+  rowPublishedMaxChargeGr: number | null;
+  rowChargeGr: number | null;
+  isMaxLoad: boolean;
+  sourcePublishedMaxGr: number | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -286,6 +294,30 @@ export function CreateLoadDraftFromRow({
   if (!hasSource) missing.push('cited source');
   if (!hasCharge) missing.push('charge');
   const blocked = missing.length > 0;
+
+  // Mirror the API's max-resolution logic to explain which max will be used.
+  const effectiveRowMax: number | null =
+    rowPublishedMaxChargeGr != null
+      ? rowPublishedMaxChargeGr
+      : isMaxLoad && rowChargeGr != null
+        ? rowChargeGr
+        : null;
+  const maxSource: 'row' | 'row-as-max' | 'source' | 'none' =
+    rowPublishedMaxChargeGr != null
+      ? 'row'
+      : isMaxLoad && rowChargeGr != null
+        ? 'row-as-max'
+        : sourcePublishedMaxGr != null
+          ? 'source'
+          : 'none';
+  const maxExplanation =
+    maxSource === 'row'
+      ? `The row's transcribed published max (${effectiveRowMax} gr) will be used as the ceiling — not the source-wide max.`
+      : maxSource === 'row-as-max'
+        ? `This row is marked maximum in the source and has no separate published max; the row charge (${effectiveRowMax} gr) will be used as the row maximum.`
+        : maxSource === 'source'
+          ? `No row-specific max is recorded; the Source-wide published max (${sourcePublishedMaxGr} gr) will be used as the ceiling.`
+          : 'No row-specific max is recorded and the cited Source has no published max. The validator will reject this draft until a max is recorded.';
 
   function submit() {
     if (!ack) {
@@ -353,7 +385,9 @@ export function CreateLoadDraftFromRow({
           title={
             blocked
               ? `Row is missing required references: ${missing.join(', ')}.`
-              : 'Create a Load draft from this user-verified source row. Safety validation still applies.'
+              : maxSource === 'none'
+                ? 'No row-specific max and no Source-wide published max — the validator will reject this draft until a max is recorded.'
+                : maxExplanation
           }
         >
           Create load draft
@@ -378,6 +412,12 @@ export function CreateLoadDraftFromRow({
       <p className="leading-snug">
         Create a Load draft from this user-verified source row. The normal load
         safety validation still applies (cited source, charge ≤ published max).
+      </p>
+      <p
+        className="mt-1 leading-snug text-text-muted"
+        data-testid={`published-row-${id}-create-load-max-explain`}
+      >
+        {maxExplanation}
       </p>
       <label className="mt-2 flex items-start gap-2 leading-snug">
         <input

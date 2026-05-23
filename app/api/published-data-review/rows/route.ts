@@ -184,6 +184,7 @@ export async function POST(req: NextRequest) {
       chargeGr: data.chargeGr ?? null,
       velocityFps: data.velocityFps ?? null,
       isMaxLoad: data.isMaxLoad ?? false,
+      publishedMaxChargeGr: data.publishedMaxChargeGr ?? null,
       colIn: data.colIn ?? null,
       bcG1: data.bcG1 ?? null,
       bcG7: data.bcG7 ?? null,

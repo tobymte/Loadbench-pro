@@ -13,10 +13,12 @@ export const dynamic = 'force-dynamic';
 //
 // Creates a Load DRAFT from a VERIFIED PublishedLoadRowDraft. This route does
 // NOT weaken the existing load safety validator in lib/validation/load.ts —
-// it composes a payload from the row and runs validateLoad() against the cited
-// Source's publishedMaxGr. If validation fails (e.g. the Source has no
-// publishedMaxGr recorded, or the row's chargeGr exceeds it), no Load is
-// created and the validator's issues are returned verbatim.
+// it composes a payload from the row and runs validateLoad() against the
+// row-specific published maximum (preferred) or the cited Source's
+// publishedMaxGr (fallback). If validation fails (e.g. neither the row nor
+// the Source has a published max recorded, or the row's chargeGr exceeds
+// the chosen max), no Load is created and the validator's issues are
+// returned verbatim.
 //
 // Safety guardrails enforced here:
 //   - Row must be VERIFIED (transcribed AND user-verified against the original).
@@ -26,6 +28,11 @@ export const dynamic = 'force-dynamic';
 //     free-text labels alone are not enough to materialize a Load.
 //   - Row must have a workspace-scoped sourceId so the cited Source feeds
 //     validateLoad() for charge-vs-publishedMax checking.
+//   - Row must record a row-specific published max if chargeGr is present,
+//     UNLESS the row itself is flagged maximum (isMaxLoad) and chargeGr ==
+//     publishedMaxChargeGr (in which case the row charge is the row max).
+//     If no row-specific max is recorded, the cited Source must have a
+//     publishedMaxGr so the canonical validator can enforce a ceiling.
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } },
@@ -131,6 +138,36 @@ export async function POST(
   const sourceId = row.sourceId!;
   const chargeGr = row.chargeGr!;
 
+  // Resolve the published max we will validate against:
+  //  - Prefer the row-specific publishedMaxChargeGr recorded on the row.
+  //  - If the row is flagged isMaxLoad and has no separate max recorded,
+  //    treat the row's charge as the row-specific maximum (i.e. this row IS
+  //    the max). This matches the manual-entry UI affordance.
+  //  - Otherwise leave it unset and fall back to Source.publishedMaxGr,
+  //    which validateLoad will require (SOURCE_MISSING_PUBLISHED_MAX if
+  //    absent).
+  let effectiveRowMax: number | null = row.publishedMaxChargeGr ?? null;
+  if (effectiveRowMax == null && row.isMaxLoad) {
+    effectiveRowMax = chargeGr;
+  }
+
+  if (effectiveRowMax == null && row.source?.publishedMaxGr == null) {
+    return NextResponse.json(
+      {
+        error: 'INVALID',
+        issues: [
+          {
+            path: ['publishedMaxChargeGr'],
+            code: 'ROW_MISSING_PUBLISHED_MAX',
+            message:
+              'Row has no row-specific published maximum recorded, the row is not flagged maximum, and the cited Source has no published max. Record a row-specific published max (or mark the row maximum, or set the Source published max) before creating a load draft.',
+          },
+        ],
+      },
+      { status: 400 },
+    );
+  }
+
   const name =
     (body.name && body.name.trim()) ||
     [
@@ -149,6 +186,9 @@ export async function POST(
     row.source?.title ? `Source: ${row.source.title}` : null,
     row.import?.title ? `Set: ${row.import.title}` : null,
     row.pageLabel ? `Page: ${row.pageLabel}` : null,
+    effectiveRowMax != null
+      ? `Row published max: ${effectiveRowMax} gr`
+      : null,
   ].filter(Boolean);
   const provenanceLine = `Created from verified published row draft (id ${row.id}).${
     citationBits.length ? ' ' + citationBits.join(' | ') + '.' : ''
@@ -166,12 +206,16 @@ export async function POST(
     sourceId,
     chargeGr,
     cartridgeOalIn: row.colIn ?? undefined,
+    publishedMaxChargeGr: effectiveRowMax ?? undefined,
+    publishedDataRowId: row.id,
+    sourcePageLabel: row.pageLabel ?? undefined,
     safetyAcknowledged: body.safetyAcknowledged,
     notes,
   };
 
-  // Run the canonical load validator against the cited Source — we do not
-  // bypass any of the existing safety rules.
+  // Run the canonical load validator. When a row-specific max is supplied,
+  // validateLoad enforces the ceiling against that value; otherwise it falls
+  // back to the cited Source's publishedMaxGr.
   const result = validateLoad(loadPayload, {
     id: row.source!.id,
     publishedMaxGr: row.source!.publishedMaxGr,
@@ -197,6 +241,9 @@ export async function POST(
       sourceId: data.sourceId ?? null,
       chargeGr: data.chargeGr ?? null,
       cartridgeOalIn: data.cartridgeOalIn ?? null,
+      publishedMaxChargeGr: data.publishedMaxChargeGr ?? null,
+      publishedDataRowId: data.publishedDataRowId ?? null,
+      sourcePageLabel: data.sourcePageLabel ?? null,
       safetyAcknowledged: data.safetyAcknowledged,
       notes: data.notes ?? null,
     },

@@ -155,13 +155,28 @@ export default async function LoadDetailPage({
               />
               <Detail label="Source" value={load.source?.title ?? '—'} />
               <Detail
-                label="Published max (gr)"
+                label="Source page"
+                value={load.sourcePageLabel ?? '—'}
+              />
+              <Detail
+                label="Published max (source, gr)"
                 value={
                   load.source?.publishedMaxGr != null
                     ? String(load.source.publishedMaxGr)
                     : '—'
                 }
                 mono
+                testid="load-detail-source-published-max"
+              />
+              <Detail
+                label="Published max (row, gr)"
+                value={
+                  load.publishedMaxChargeGr != null
+                    ? String(load.publishedMaxChargeGr)
+                    : '—'
+                }
+                mono
+                testid="load-detail-row-published-max"
               />
               <Detail
                 label="Safety acknowledged"
@@ -260,10 +275,12 @@ function Detail({
   label,
   value,
   mono,
+  testid,
 }: {
   label: string;
   value: string;
   mono?: boolean;
+  testid?: string;
 }) {
   return (
     <div>
@@ -274,6 +291,7 @@ function Detail({
         className={
           'mt-1 text-text ' + (mono ? 'font-mono tabular-nums' : 'font-medium')
         }
+        data-testid={testid}
       >
         {value}
       </dd>
