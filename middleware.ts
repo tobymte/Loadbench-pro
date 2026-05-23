@@ -6,6 +6,9 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/health',
+  // Stripe-signed webhook — verified via STRIPE_WEBHOOK_SECRET inside the
+  // handler. Must remain unauthenticated so Stripe can deliver events.
+  '/api/billing/webhook',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

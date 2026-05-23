@@ -8,6 +8,9 @@ import { solverReadinessChecklist } from '@/lib/analysis/pressureReadiness';
 import { PressureModelVersionForm } from '@/components/forms/PressureModelVersionForm';
 import { PressureValidationRecordForm } from '@/components/forms/PressureValidationRecordForm';
 import { LoadReadinessSelector } from '@/components/forms/LoadReadinessSelector';
+import { PaywallNotice } from '@/components/billing/PaywallNotice';
+import { FEATURE_KEYS, getEntitlement } from '@/lib/billing/entitlements';
+import { isStripeConfigured } from '@/lib/billing/stripe';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +64,54 @@ function checklistTone(
 
 export default async function PressureModelingTestBenchPage() {
   const ctx = await getWorkspaceContext();
+
+  // Premium gating. Until the workspace has an active entitlement for
+  // pressure_modeling, render only the paywall + safety copy. The DB
+  // queries below are intentionally not executed in the locked state.
+  const entitlement = await getEntitlement(
+    ctx.workspaceId,
+    FEATURE_KEYS.PRESSURE_MODELING,
+  );
+  const stripeConfigured = isStripeConfigured();
+
+  if (!entitlement.hasAccess) {
+    return (
+      <>
+        <Topbar
+          title="Pressure modeling test bench"
+          actions={<Badge tone="accent">Premium</Badge>}
+        />
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+          <div
+            className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[13px] text-text"
+            data-testid="pressure-modeling-warning"
+          >
+            <strong className="font-semibold">
+              Experimental validation workspace — not a pressure predictor, not
+              load advice.
+            </strong>{' '}
+            Nothing on this page computes pressure, recommends a charge, or
+            marks any load as safe or unsafe. A paid subscription unlocks
+            additional review surfaces only — it does not turn LoadBench Pro
+            into a load recommender. See the{' '}
+            <Link href="/safety" className="text-accent hover:text-accent-hover">
+              safety policy
+            </Link>
+            .
+          </div>
+          <PaywallNotice
+            entitlement={entitlement}
+            stripeConfigured={stripeConfigured}
+            featureBullets={[
+              'Pressure-modeling test bench: structured notes, model-version records, and load-readiness review surfaces.',
+              'Validation-record bookkeeping that a future expert-reviewed internal-ballistics model would have to pass before it could ever be enabled.',
+              'Expanded solver-input data capture surfaces for case capacity, bullet dimensions, powder metadata, barrel geometry, and chrono calibration.',
+            ]}
+          />
+        </div>
+      </>
+    );
+  }
 
   const [
     loads,

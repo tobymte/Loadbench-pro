@@ -62,8 +62,57 @@ model Workspace {
   simulationRuns            SimulationRun[]
   publishedDataImports      PublishedDataImport[]
   publishedLoadRowDrafts    PublishedLoadRowDraft[]
+  entitlements              WorkspaceEntitlement[]
 
   @@index([ownerId])
+}
+
+// =============================================================================
+// Billing entitlements (Stripe)
+// =============================================================================
+//
+// WorkspaceEntitlement tracks paid-access state for premium feature keys
+// (e.g. "pressure_modeling") on a per-workspace basis. This table is the
+// single source of truth for gating premium UI; the Stripe webhook updates
+// rows here in response to subscription lifecycle events.
+//
+// Nothing in this table changes load validation behaviour. Premium access
+// only unlocks UI surfaces — it does not authorize pressure predictions,
+// charge recommendations, or any safety verdict.
+
+enum EntitlementStatus {
+  INACTIVE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  UNPAID
+  PAUSED
+}
+
+model WorkspaceEntitlement {
+  id                   String            @id @default(cuid())
+  workspaceId          String
+  // Logical feature key (e.g. "pressure_modeling"). Multiple entitlements
+  // per workspace are possible if more premium features are added later.
+  featureKey           String
+  status               EntitlementStatus @default(INACTIVE)
+  // Stripe identifiers — all optional because an entitlement row may be
+  // created in INACTIVE state before any Stripe interaction.
+  stripeCustomerId     String?
+  stripeSubscriptionId String?           @unique
+  stripePriceId        String?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean           @default(false)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, featureKey])
+  @@index([stripeCustomerId])
 }
 
 enum WorkspaceRole {

@@ -83,6 +83,92 @@ Copy `.env.example` to `.env.local`. Never commit real secrets.
 
 ---
 
+## Premium access via Stripe
+
+LoadBench Pro gates the **advanced pressure-modeling workspace** behind a
+recurring Stripe subscription. The velocity-only validation sandbox at
+`/simulation-sandbox` remains accessible without a subscription; what paid
+access unlocks is the full `/pressure-modeling` test bench (model-version
+records, validation-record review, load-readiness selection, expanded
+solver-input data capture).
+
+> Premium access is **infrastructure only**. It does **not** grant load
+> recommendations, pressure predictions, or safe/unsafe verdicts. All
+> calculations are experimental validation tools and must be independently
+> verified against published manufacturer data before being used to inform
+> any handload.
+
+### Required environment variables
+
+| Variable                                | Required for billing | Notes |
+| --------------------------------------- | -------------------- | ----- |
+| `STRIPE_SECRET_KEY`                     | yes                  | Server-side Stripe secret (`sk_test_…` / `sk_live_…`). |
+| `STRIPE_WEBHOOK_SECRET`                 | yes                  | Signing secret for the `/api/billing/webhook` endpoint. |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`    | optional             | Reserved for future client-side Stripe.js usage. |
+| `STRIPE_PRESSURE_MODELING_PRICE_ID`     | yes                  | Stripe Price id (`price_…`) for the recurring subscription. |
+| `NEXT_PUBLIC_APP_URL`                   | yes                  | Base URL used to build Checkout success / cancel / portal return URLs. |
+
+### Creating the Stripe product / price
+
+1. Sign in to <https://dashboard.stripe.com>.
+2. **Products → Add product**. Name it e.g. *LoadBench Pro — Pressure
+   Modeling*. Add a **recurring** price (monthly or annual).
+3. Copy the resulting **Price** id (starts with `price_`) into
+   `STRIPE_PRESSURE_MODELING_PRICE_ID`.
+4. Under **Developers → API keys**, copy the **Secret key** into
+   `STRIPE_SECRET_KEY`.
+
+### Configuring the webhook
+
+The webhook endpoint is `POST /api/billing/webhook` and must receive these
+events:
+
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+
+**Local development** (with the Stripe CLI):
+
+```bash
+stripe login
+stripe listen --forward-to localhost:3000/api/billing/webhook
+# Copy the printed whsec_… into STRIPE_WEBHOOK_SECRET in .env.local
+```
+
+Trigger a test event:
+
+```bash
+stripe trigger checkout.session.completed
+```
+
+**Production / Vercel**:
+
+1. In the Stripe dashboard go to **Developers → Webhooks → Add endpoint**.
+2. URL: `https://<your-domain>/api/billing/webhook`.
+3. Select the four events listed above.
+4. Copy the endpoint's **Signing secret** into the Vercel project's
+   `STRIPE_WEBHOOK_SECRET` environment variable (Production scope).
+5. Also set `STRIPE_SECRET_KEY`, `STRIPE_PRESSURE_MODELING_PRICE_ID`,
+   `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (optional), and `NEXT_PUBLIC_APP_URL`
+   in Vercel.
+
+### Routes
+
+| Route                          | Method | Purpose                                       |
+| ------------------------------ | ------ | --------------------------------------------- |
+| `/api/billing/checkout`        | POST   | Creates a Stripe Checkout session and 303-redirects the caller. |
+| `/api/billing/portal`          | POST   | Opens the Stripe Billing Portal for the workspace's customer. |
+| `/api/billing/webhook`         | POST   | Stripe-signed webhook. Updates `WorkspaceEntitlement`. |
+
+`WorkspaceEntitlement` (in `prisma/schema.prisma`) is the single source of
+truth for whether a workspace has unlocked a given feature key (currently
+`pressure_modeling`). Server-side helpers in `lib/billing/entitlements.ts`
+expose `hasPremiumAccess(workspaceId, featureKey)` and
+`getEntitlement(...)` for use in route handlers and server components.
+
+---
+
 ## Enabling Clerk
 
 The scaffold ships in **auth-disabled** mode so the UI renders end-to-end without secrets. To enable Clerk:

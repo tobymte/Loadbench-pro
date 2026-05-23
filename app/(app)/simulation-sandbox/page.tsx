@@ -17,6 +17,9 @@ import {
   SIMULATION_STATUS_LABEL,
   type SimulationRunStatus,
 } from '@/lib/validation/simulationRun';
+import { PaywallNotice } from '@/components/billing/PaywallNotice';
+import { FEATURE_KEYS, getEntitlement } from '@/lib/billing/entitlements';
+import { isStripeConfigured } from '@/lib/billing/stripe';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +89,16 @@ function publishedRowLabel(row: {
 
 export default async function SimulationSandboxPage() {
   const ctx = await getWorkspaceContext();
+
+  // Premium entitlement for advanced pressure modeling. The velocity-only
+  // validation sandbox below remains accessible without a subscription; the
+  // PaywallNotice card describes the *advanced* pressure-modeling surfaces
+  // that paid access unlocks.
+  const pressureModelingEntitlement = await getEntitlement(
+    ctx.workspaceId,
+    FEATURE_KEYS.PRESSURE_MODELING,
+  );
+  const stripeConfigured = isStripeConfigured();
 
   const [
     modelVersions,
@@ -242,6 +255,20 @@ export default async function SimulationSandboxPage() {
           </Link>
           .
         </div>
+
+        {!pressureModelingEntitlement.hasAccess && (
+          <PaywallNotice
+            entitlement={pressureModelingEntitlement}
+            stripeConfigured={stripeConfigured}
+            title="Premium: advanced pressure-modeling surfaces"
+            description="The velocity-only validation sandbox below is freely available. A paid subscription unlocks the advanced pressure-modeling workspace — additional review and bookkeeping surfaces only, never load recommendations."
+            featureBullets={[
+              'Full pressure-modeling test bench: model-version records, validation-record review, and load-readiness selection.',
+              'Expanded solver-input data capture surfaces.',
+              'Calculations remain experimental validation tools. They do not predict pressure, recommend charges, or label any load safe or unsafe, and must be independently verified against published manufacturer data.',
+            ]}
+          />
+        )}
 
         <Card>
           <CardHeader
