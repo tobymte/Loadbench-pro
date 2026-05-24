@@ -143,7 +143,17 @@ export function BallisticsCalculator({
         if (res.status === 503) {
           setError(
             body.message ??
-              'The ballistics engine is not configured. Set BALLISTICS_ENGINE_URL and start the .NET service.',
+              'The ballistics engine is not configured. Set BALLISTICS_ENGINE_URL and start the .NET service (services/ballistics-engine).',
+          );
+        } else if (res.status === 504) {
+          setError(
+            body.message ??
+              'The ballistics engine is unreachable. Confirm the .NET service is running and that BALLISTICS_ENGINE_URL points to it.',
+          );
+        } else if (res.status === 502) {
+          setError(
+            body.message ??
+              'The ballistics engine returned an error. Check the .NET service logs.',
           );
         } else if (body.problems && body.problems.length > 0) {
           setWarning(body.problems.join(' '));

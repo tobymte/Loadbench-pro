@@ -2,9 +2,14 @@
 // forwards to the external .NET Ballistics Engine, and returns only
 // external-ballistics fields (range, velocity, energy, drop, drift, time,
 // MOA/Mil). It never returns pressure, PSI, charge advice, or safety verdicts.
+//
+// External ballistics is a pure-computation feature: it deliberately does NOT
+// require a database or workspace. When DATABASE_URL is missing the route still
+// validates input and calls the .NET engine. Workspace auth is only enforced
+// opportunistically (when a database is configured) so existing multi-tenant
+// deployments keep their auth checks.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getWorkspaceContext } from '@/lib/auth/workspace';
 import {
   ballisticsRequestSchema,
   callBallisticsEngine,
@@ -13,11 +18,26 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+async function tryAuthorize(): Promise<
+  { ok: true } | { ok: false; status: number; error: string }
+> {
+  // No database -> nothing to authorize against; external ballistics is
+  // public-by-design in that deployment shape.
+  if (!process.env.DATABASE_URL) return { ok: true };
+
   try {
+    const { getWorkspaceContext } = await import('@/lib/auth/workspace');
     await getWorkspaceContext();
+    return { ok: true };
   } catch {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    return { ok: false, status: 401, error: 'unauthenticated' };
+  }
+}
+
+export async function GET() {
+  const auth = await tryAuthorize();
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   const configured = getEngineUrl() !== null;
   return NextResponse.json({
@@ -29,10 +49,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    await getWorkspaceContext();
-  } catch {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  const auth = await tryAuthorize();
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   if (getEngineUrl() === null) {
@@ -72,7 +91,11 @@ export async function POST(req: NextRequest) {
     switch (err.kind) {
       case 'unconfigured':
         return NextResponse.json(
-          { error: 'service_unconfigured', message: 'BALLISTICS_ENGINE_URL is not set.' },
+          {
+            error: 'service_unconfigured',
+            message:
+              'BALLISTICS_ENGINE_URL is not set. Start the .NET service in services/ballistics-engine and set BALLISTICS_ENGINE_URL in .env.local.',
+          },
           { status: 503 },
         );
       case 'invalid_request':
@@ -92,7 +115,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error: 'engine_unreachable',
-            message: `Could not reach the ballistics engine: ${err.message}`,
+            message: `Could not reach the ballistics engine at BALLISTICS_ENGINE_URL: ${err.message}. Is the .NET service running (dotnet run in services/ballistics-engine)?`,
           },
           { status: 504 },
         );

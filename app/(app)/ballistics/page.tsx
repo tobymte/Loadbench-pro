@@ -1,47 +1,14 @@
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
-import { prisma } from '@/lib/db/prisma';
-import { getWorkspaceContext } from '@/lib/auth/workspace';
 import { getEngineUrl } from '@/lib/ballistics/engineClient';
+import { loadBallisticsPrefills } from '@/lib/ballistics/prefills';
 import { BallisticsCalculator } from './BallisticsCalculator';
 
 export const dynamic = 'force-dynamic';
 
 export default async function BallisticsPage() {
-  const ctx = await getWorkspaceContext();
-
-  const loads = await prisma.load.findMany({
-    where: { workspaceId: ctx.workspaceId },
-    orderBy: { updatedAt: 'desc' },
-    include: {
-      bullet: {
-        select: {
-          manufacturer: true,
-          model: true,
-          bulletWeightGr: true,
-          bulletBc: true,
-        },
-      },
-      rifle: { select: { zeroDistanceYd: true } },
-      sessions: {
-        select: { date: true, avgVelocityFps: true },
-        orderBy: { date: 'desc' },
-        take: 1,
-      },
-    },
-  });
-
-  const prefills = loads.map((l) => ({
-    id: l.id,
-    label: l.bullet
-      ? `${l.name} — ${l.bullet.manufacturer} ${l.bullet.model}`
-      : l.name,
-    bulletWeightGr: l.bullet?.bulletWeightGr ?? null,
-    bcG1: l.bullet?.bulletBc ?? null,
-    muzzleVelocityFps: l.sessions[0]?.avgVelocityFps ?? null,
-    zeroDistanceYd: l.rifle?.zeroDistanceYd ?? null,
-  }));
-
+  const { prefills, prefillsAvailable, prefillError } =
+    await loadBallisticsPrefills();
   const engineConfigured = getEngineUrl() !== null;
 
   return (
@@ -105,6 +72,26 @@ BALLISTICS_ENGINE_URL=http://localhost:5080`}
                 <p className="mt-2 text-text-muted">
                   See <code>services/ballistics-engine/README.md</code> and the
                   project README for hosting notes and LGPL attribution.
+                </p>
+              </div>
+            )}
+
+            {!prefillsAvailable && (
+              <div
+                className="mb-4 rounded-md border border-border bg-bg-alt/40 px-4 py-3 text-[12px] text-text-muted"
+                data-testid="ballistics-prefill-unavailable"
+              >
+                <div className="font-medium text-text mb-1">
+                  Saved-load prefill is unavailable.
+                </div>
+                <p>
+                  {prefillError === 'no-database'
+                    ? 'No database is configured (DATABASE_URL is not set), so saved loads cannot be listed here.'
+                    : prefillError === 'unauthenticated'
+                    ? 'You are not signed in, so saved loads cannot be listed here.'
+                    : 'Saved loads could not be loaded right now.'}{' '}
+                  You can still enter values manually below — the external
+                  ballistics calculator works without a database.
                 </p>
               </div>
             )}
