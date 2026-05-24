@@ -64,6 +64,9 @@ model Workspace {
   publishedDataImports      PublishedDataImport[]
   publishedLoadRowDrafts    PublishedLoadRowDraft[]
   entitlements              WorkspaceEntitlement[]
+  modelValidationDatasets   ModelValidationDataset[]
+  modelValidationCases      ModelValidationCase[]
+  modelValidationRuns       ModelValidationRun[]
 
   @@index([ownerId])
 }
@@ -923,4 +926,131 @@ model PublishedLoadRowDraft {
 
   @@index([workspaceId, status])
   @@index([importId])
+}
+
+// =============================================================================
+// Model validation harness — admin-only, governance-first.
+// These tables persist validation datasets, reference cases, and runs of an
+// adapter against those cases. NOTHING here computes pressure. Every run row
+// carries an explicit pressurePredictionStatus = 'disabled' (or another
+// non-prescriptive label) so the audit trail can prove no predictions were
+// produced. Reference pressure values, when stored on a case, are USER-
+// ENTERED REFERENCE METADATA from a licensed source or a controlled lab —
+// they are admin-only and never rendered as load guidance.
+// =============================================================================
+
+enum ModelValidationDatasetKind {
+  PUBLISHED
+  MANUFACTURER
+  LAB
+  INTERNAL_TEST
+}
+
+enum ModelValidationDatasetStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED_PENDING_REVIEW
+  ARCHIVED
+}
+
+enum ModelValidationRunStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED_NON_OPERATIONAL
+  REJECTED_BY_GUARDRAIL
+  ERRORED
+  ARCHIVED
+}
+
+model ModelValidationDataset {
+  id                       String                       @id @default(cuid())
+  workspaceId              String
+  name                     String
+  kind                     ModelValidationDatasetKind   @default(PUBLISHED)
+  description              String?
+  // Reference identifier — DOI, manual page reference, lab report id, etc.
+  referenceIdentifier      String?
+  licenseNote              String?
+  status                   ModelValidationDatasetStatus @default(DRAFT)
+  // The admin must check this acknowledgement before the row is saved.
+  acknowledgedValidationOnly Boolean                     @default(false)
+  createdById              String?
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cases     ModelValidationCase[]
+  runs      ModelValidationRun[]
+
+  @@index([workspaceId, status])
+}
+
+model ModelValidationCase {
+  id                  String   @id @default(cuid())
+  workspaceId         String
+  datasetId           String
+  label               String
+  cartridgeName       String?
+  bulletWeightGr      Float?
+  bulletDiameterIn    Float?
+  chargeGr            Float?
+  caseCapacityGrH2O   Float?
+  barrelLengthIn      Float?
+  twistRate           String?
+  cartridgeOalIn      Float?
+  powderBurnRateLabel String?
+  tempF               Float?
+  // Reference values transcribed from the dataset source. Velocity is
+  // displayed; pressure is admin-only validation reference data and is
+  // never rendered as guidance.
+  referenceVelocityFps Float?
+  referencePressurePsi Int?
+  // Optional observed-velocity from a lab measurement, used for velocity
+  // delta surfaced by the harness.
+  observedVelocityFps  Float?
+  pageLabel            String?
+  notes                String?
+  createdById          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  workspace Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  dataset   ModelValidationDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([datasetId])
+}
+
+model ModelValidationRun {
+  id                  String                    @id @default(cuid())
+  workspaceId         String
+  datasetId           String
+  // Adapter identity. Code-only registry — see lib/ballistics/modelAdapter.ts.
+  adapterName         String
+  adapterVersion      String?
+  modelVersionId      String?
+  status              ModelValidationRunStatus  @default(DRAFT)
+  // Always one of the non-prescriptive labels. Persisted so the audit trail
+  // can prove no run produced a pressure estimate.
+  pressurePredictionStatus String                  @default("disabled")
+  // JSON-encoded harness summary: total cases, completed cases, guardrail
+  // rejections, mean velocity delta, etc. Stored as String for Postgres-
+  // provider portability and to match AuditEvent.payload convention.
+  summaryJson         String?
+  // JSON-encoded per-case results.
+  caseResultsJson     String?
+  // If the run was rejected by the guardrail, the set of forbidden keys
+  // observed across cases is captured here for quick SQL audit.
+  rejectedForbiddenKeysJson String?
+  notes               String?
+  acknowledgedValidationOnly Boolean             @default(false)
+  createdById         String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  workspace Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  dataset   ModelValidationDataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+  @@index([datasetId])
 }

@@ -59,6 +59,7 @@ const NAV: Array<{
     group: 'Admin',
     items: [
       { href: '/admin/entitlements', label: 'Entitlements', hint: 'Operator', title: 'Manage premium entitlements per workspace' },
+      { href: '/admin/model-validation', label: 'Model validation', hint: 'Operator', title: 'Validation harness for the internal ballistics model adapter — pressure prediction disabled' },
     ],
   },
 ];

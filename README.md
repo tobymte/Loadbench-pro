@@ -346,6 +346,121 @@ will be produced by this app under any circumstance.
 
 ---
 
+## Internal ballistics model adapter — admin-only validation harness
+
+LoadBench Pro defines a controlled adapter contract for future internal
+ballistics models in `lib/ballistics/modelAdapter.ts`. **The only adapter
+shipped is the disabled default.** It returns:
+
+- `pressurePredictionStatus: "disabled"`
+- `dataCompleteness`, `missingFields`, `warnings`
+- `sourceCoverage` (bullet / powder / case / barrel / reference / observed)
+- `velocityDeltaFps` / `velocityDeltaPct` when both reference and observed
+  velocity are present (velocity, never pressure)
+- `validation` metadata: adapter name, version, governance status, blocked-
+  outputs policy
+
+The adapter contract:
+
+| Field                                          | Type                                     | Notes                                                                                           |
+| ---------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `pressurePredictionStatus`                     | `"disabled" \| "validation_only" \| "awaiting_review"` | Default adapter always emits `"disabled"`. Anything else is treated as still non-operational. |
+| `dataCompleteness`                             | `number` (0..1)                          | Descriptive, never a safety verdict.                                                            |
+| `missingFields`                                | `string[]`                               | Field names that were absent or null.                                                           |
+| `warnings`                                     | `string[]`                               | Input-consistency warnings only; never a safe / unsafe verdict.                                 |
+| `sourceCoverage`                               | object                                   | Categories of reference / observation supplied.                                                 |
+| `velocityDeltaFps`, `velocityDeltaPct`         | `number \| null`                         | Velocity-only. Pressure is never computed.                                                      |
+| `validation`                                   | object                                   | Adapter name, version, governance status, blocked-outputs policy.                               |
+
+### Forbidden output keys (rejected by sanitizer)
+
+`sanitizeAdapterResponse` reuses the centralized
+`FORBIDDEN_OUTPUT_KEYS` list from `lib/validation/pressureEngine.ts` and
+rejects any response containing — at any depth, case-insensitively —
+`predictedPressurePsi`, `peakPressure`, `chamberPressure`, `safe`,
+`unsafe`, `recommendedCharge`, `maxChargeRecommendation`, `loadAdvice`,
+`powderSubstitution`, `increaseCharge`, `decreaseCharge`, and aliases.
+
+### Validation harness workflow (admin-only)
+
+Admins (Clerk emails listed in `LOADBENCH_ADMIN_EMAILS`, or local-dev with
+`LOADBENCH_DISABLE_AUTH=true`) can:
+
+1. Browse `/admin/model-validation` to see existing validation datasets and
+   the hardcoded adapter registry.
+2. Create a new validation dataset (kind: `published`, `manufacturer`,
+   `lab`, or `internal_test`) with a reference identifier and licensing
+   note. Acknowledgement that the dataset is validation-only is required.
+3. Open a dataset at `/admin/model-validation/{id}` to add reference
+   cases. Each case carries the published / lab inputs (cartridge, bullet
+   weight & diameter, charge, case capacity, barrel length, twist, OAL,
+   powder burn rate, temperature, reference velocity, observed velocity).
+   **Reference pressure**, when present, is admin-only validation metadata
+   transcribed from the source — it is never rendered as load guidance and
+   the field name (`referencePressurePsi`) is intentionally distinct from
+   any forbidden output key.
+4. Run the harness against the dataset by selecting an adapter. The
+   forbidden-key sanitizer scrubs every adapter response. A
+   `ModelValidationRun` row is persisted with `pressurePredictionStatus`
+   echoed from the adapter (always `"disabled"` for the default adapter)
+   and a JSON-encoded summary (total cases, completed, guardrail
+   rejections, mean velocity delta, mean |velocity delta|).
+
+Non-admins are unauthorized. Premium non-admins (with the
+`pressure_modeling` entitlement) see only an aggregate dataset count on
+the unauthorized landing — no cases, no pressure values, no run outputs.
+
+### Routes (model validation)
+
+| Route                                            | Method | Purpose                                                                          |
+| ------------------------------------------------ | ------ | -------------------------------------------------------------------------------- |
+| `/admin/model-validation`                        | GET    | Admin dataset list + adapter registry + create-dataset form.                      |
+| `/admin/model-validation/{id}`                   | GET    | Admin dataset detail: cases, run harness, run results.                            |
+| `/api/admin/model-validation/datasets`           | GET    | Admin: list datasets in the workspace.                                            |
+| `/api/admin/model-validation/datasets`           | POST   | Admin: create dataset (rejects forbidden keys).                                   |
+| `/api/admin/model-validation/cases`              | POST   | Admin: add a validation case (rejects forbidden keys).                            |
+| `/api/admin/model-validation/runs`               | POST   | Admin: run a harness; persists a `ModelValidationRun` row with disabled status.   |
+
+### Data model
+
+`ModelValidationDataset`, `ModelValidationCase`, and `ModelValidationRun`
+are additive tables. `ModelValidationRun.pressurePredictionStatus`
+defaults to `"disabled"`, and `ModelValidationRun.status` uses the
+`ModelValidationRunStatus` enum which includes `REJECTED_BY_GUARDRAIL` for
+auditability. No existing model is changed by this migration.
+
+### Adapter status workflow
+
+Adapters carry a `governanceStatus` field with values `"disabled"`,
+`"draft"`, `"validation_only"`, or `"retired"`. The default adapter is
+`"disabled"`. **No adapter shipped with this app is ever
+`"approved_pending_review"` or analogous — and approval would not on its
+own enable pressure outputs.** Before any future adapter could leave
+`"validation_only"`, the gates documented above (validated lab model,
+SAAMI / CIP / manufacturer review, legal / safety review, instrumented
+test validation) all have to be met, plus a code review of the adapter
+implementation itself.
+
+### Required environment
+
+Admin gating uses the existing variables:
+
+- `LOADBENCH_ADMIN_EMAILS` — comma-separated lowercase Clerk emails.
+- `LOADBENCH_DISABLE_AUTH=true` — local dev only; bypasses Clerk so the
+  admin UI can be exercised without setting up auth.
+- `DATABASE_URL` — Postgres connection string.
+
+After deploying this feature, run:
+
+```
+npx prisma migrate deploy
+npx prisma generate
+```
+
+Pressure prediction remains disabled regardless of setup state.
+
+---
+
 ## Premium access via BigCommerce
 
 LoadBench Pro gates the **advanced pressure-modeling workspace** behind a
