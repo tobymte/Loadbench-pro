@@ -334,7 +334,7 @@ export default async function DataQualityPage({
         title="Data quality review center"
         actions={<Badge tone="accent">Completeness only</Badge>}
       />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         <Card>
           <CardHeader
             title="What this page does"

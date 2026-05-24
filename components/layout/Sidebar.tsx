@@ -12,6 +12,7 @@ const NAV: Array<{
     group: 'Workspace',
     items: [
       { href: '/dashboard', label: 'Dashboard', hint: 'Start here' },
+      { href: '/onboarding', label: 'Onboarding', title: 'First-login setup walkthrough' },
       { href: '/notebook', label: 'Notebook & printables', title: 'Printable load and component cards' },
     ],
   },
@@ -53,7 +54,9 @@ const NAV: Array<{
     items: [
       { href: '/data-tools', label: 'Data tools', title: 'Workspace export and bulk operations' },
       { href: '/settings', label: 'Settings' },
+      { href: '/settings/deployment', label: 'Deployment guide', title: 'Production setup notes for operators' },
       { href: '/safety', label: 'Safety policy', hint: 'Required', title: 'Required reading before recording any load' },
+      { href: '/beta', label: 'Beta package', title: 'Beta-tester onboarding, limitations, and bug-report template' },
     ],
   },
   {
@@ -61,7 +64,10 @@ const NAV: Array<{
     items: [
       { href: '/admin/entitlements', label: 'Entitlements', hint: 'Operator', title: 'Manage premium entitlements per workspace' },
       { href: '/admin/model-validation', label: 'Model validation', hint: 'Operator', title: 'Validation harness for the internal ballistics model adapter — pressure prediction disabled', exact: true },
+      { href: '/admin/model-validation/templates', label: 'Validation templates', hint: 'Operator', title: 'Downloadable CSV templates for safe validation dataset entry' },
       { href: '/admin/model-validation/reporting', label: 'Validation reporting', hint: 'Operator', title: 'Aggregate stats, run history, adapter status, guardrail telemetry' },
+      { href: '/admin/deployment-check', label: 'Deployment check', hint: 'Operator', title: 'Env-var diagnostics and DB / ballistics-engine liveness probes' },
+      { href: '/admin/beta', label: 'Beta release', hint: 'Operator', title: 'Beta release readiness, blockers, and tester links' },
     ],
   },
 ];

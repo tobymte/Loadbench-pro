@@ -1,6 +1,7 @@
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
-import { getEngineUrl } from '@/lib/ballistics/engineClient';
+import { Badge } from '@/components/ui/Badge';
+import { getEngineUrl, probeEngineHealth } from '@/lib/ballistics/engineClient';
 import { loadBallisticsPrefills } from '@/lib/ballistics/prefills';
 import { BallisticsCalculator } from './BallisticsCalculator';
 
@@ -10,11 +11,17 @@ export default async function BallisticsPage() {
   const { prefills, prefillsAvailable, prefillError } =
     await loadBallisticsPrefills();
   const engineConfigured = getEngineUrl() !== null;
+  const health = engineConfigured
+    ? await probeEngineHealth({ timeoutMs: 2500 })
+    : null;
 
   return (
     <>
-      <Topbar title="Ballistics calculator" />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <Topbar
+        title="Ballistics calculator"
+        actions={renderEngineBadge(engineConfigured, health)}
+      />
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         <Card>
           <CardHeader
             title="External ballistics estimate"
@@ -105,4 +112,23 @@ BALLISTICS_ENGINE_URL=http://localhost:5080`}
       </div>
     </>
   );
+}
+
+function renderEngineBadge(
+  configured: boolean,
+  health: Awaited<ReturnType<typeof probeEngineHealth>> | null,
+) {
+  if (!configured) return <Badge tone="warning">Engine unconfigured</Badge>;
+  if (!health) return null;
+  if (health.kind === 'ok') {
+    return (
+      <Badge tone="success">
+        Engine {health.engine} · {health.latencyMs} ms
+      </Badge>
+    );
+  }
+  if (health.kind === 'error') {
+    return <Badge tone="danger">Engine unreachable</Badge>;
+  }
+  return null;
 }

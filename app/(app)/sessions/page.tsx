@@ -48,7 +48,7 @@ export default async function SessionsPage() {
           </Link>
         }
       />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         <SessionForm
           options={{
             loads: loads.map((l) => ({ value: l.id, label: l.name })),

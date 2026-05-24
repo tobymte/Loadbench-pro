@@ -27,7 +27,7 @@ export default async function SourcesPage() {
   return (
     <>
       <Topbar title="Sources" />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         <SourceForm />
 
         <Card>

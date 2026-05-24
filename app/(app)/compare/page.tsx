@@ -35,7 +35,7 @@ export default async function ComparePage() {
   return (
     <>
       <Topbar title="Compare loads" />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         <Card>
           <CardHeader
             title="Side-by-side load comparison"

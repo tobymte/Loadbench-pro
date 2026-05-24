@@ -162,3 +162,50 @@ export async function callBallisticsEngine(
     clearTimeout(timeout);
   }
 }
+
+// Health probe used by the deployment-check page and the app-side ballistics
+// status display. Returns a small, JSON-safe object — never throws.
+export type EngineHealth =
+  | { kind: 'unconfigured' }
+  | {
+      kind: 'ok';
+      engine: string;
+      notice: string;
+      latencyMs: number;
+    }
+  | { kind: 'error'; status?: number; message: string; latencyMs: number };
+
+export async function probeEngineHealth(opts: { timeoutMs?: number } = {}): Promise<EngineHealth> {
+  const base = getEngineUrl();
+  if (!base) return { kind: 'unconfigured' };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 3000);
+  const start = Date.now();
+  try {
+    const res = await fetch(`${base}/health`, {
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    const latencyMs = Date.now() - start;
+    if (!res.ok) {
+      return { kind: 'error', status: res.status, message: `engine returned ${res.status}`, latencyMs };
+    }
+    const body = (await res.json().catch(() => null)) as
+      | { engine?: string; notice?: string; status?: string }
+      | null;
+    return {
+      kind: 'ok',
+      engine: body?.engine ?? 'unknown',
+      notice: body?.notice ?? '',
+      latencyMs,
+    };
+  } catch (err) {
+    return {
+      kind: 'error',
+      message: err instanceof Error ? err.message : 'unreachable',
+      latencyMs: Date.now() - start,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}

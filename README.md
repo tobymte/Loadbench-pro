@@ -1,6 +1,8 @@
 # LoadBench Pro — Starter
 
-A safety-first reloading notebook scaffold. **Next.js 14 (App Router) · TypeScript · Tailwind CSS · Prisma · Postgres · Clerk-ready.**
+A safety-first reloading notebook scaffold. **Next.js 15 (App Router) · TypeScript · Tailwind CSS · Prisma · Postgres · Clerk.**
+
+> **Production / beta operators:** see [`app/(app)/settings/deployment/page.tsx`](app/(app)/settings/deployment/page.tsx) (also visible in the app at `/settings/deployment`) for the full deployment guide, [`/admin/deployment-check`](app/(app)/admin/deployment-check/page.tsx) for env-var diagnostics, and [`/admin/beta`](app/(app)/admin/beta/page.tsx) for release readiness. Tester onboarding lives at [`/beta`](app/(app)/beta/page.tsx). First-login walkthrough is at [`/onboarding`](app/(app)/onboarding/page.tsx). CSV exports are served from `/api/export/csv/<entity>` (see [`/data-tools`](app/(app)/data-tools/page.tsx)).
 
 > ⚠ **This is a notebook, not a load engine.**
 > LoadBench Pro records what you load and the published source you cite. It does **not** recommend, predict, or correct charges. Read [`app/safety/page.tsx`](app/safety/page.tsx) before recording anything.
@@ -11,7 +13,7 @@ A safety-first reloading notebook scaffold. **Next.js 14 (App Router) · TypeScr
 
 | Layer       | Choice                                            |
 | ----------- | ------------------------------------------------- |
-| Framework   | Next.js 14 App Router (RSC + route handlers)      |
+| Framework   | Next.js 15 App Router (RSC + route handlers)      |
 | Language    | TypeScript (strict)                               |
 | Styling     | Tailwind CSS v3 with a custom dark palette        |
 | ORM         | Prisma 5                                          |

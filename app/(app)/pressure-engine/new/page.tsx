@@ -45,7 +45,7 @@ function SetupNotice({ message }: { message: string }) {
         title="Pressure engine · New run"
         actions={<Badge tone="warning">Setup required</Badge>}
       />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         <div
           className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[13px] text-text space-y-2"
           data-testid="pressure-engine-new-setup-required"
@@ -114,7 +114,7 @@ export default async function PressureEngineNewRunPage() {
           title="Pressure engine · New run"
           actions={<Badge tone="accent">Premium</Badge>}
         />
-        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
           <div
             className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[13px] text-text"
             data-testid="pressure-engine-new-locked"
@@ -190,7 +190,7 @@ export default async function PressureEngineNewRunPage() {
           </>
         }
       />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         <Breadcrumbs
           items={[
             { href: '/dashboard', label: 'Dashboard' },

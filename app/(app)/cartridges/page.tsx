@@ -25,7 +25,7 @@ export default async function CartridgesPage() {
   return (
     <>
       <Topbar title="Cartridges" />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         <CartridgeForm />
 
         <Card>

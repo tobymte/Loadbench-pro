@@ -42,7 +42,7 @@ export default async function DataImportPage({
         title="Guided data import"
         actions={<Badge tone="accent">Beginner-friendly</Badge>}
       />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         <Card>
           <CardHeader
             title="One place to paste your data"

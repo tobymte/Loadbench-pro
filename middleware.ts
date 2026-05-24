@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/health',
+  '/api/ballistics/health',
   // Stripe-signed webhook — verified via STRIPE_WEBHOOK_SECRET inside the
   // handler. Must remain unauthenticated so Stripe can deliver events.
   '/api/billing/webhook',

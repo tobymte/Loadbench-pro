@@ -424,7 +424,7 @@ export default async function DashboardPage() {
           </>
         }
       />
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
         {isFirstRun && (
           <Card
             className="border-accent/40"
@@ -434,11 +434,18 @@ export default async function DashboardPage() {
               title="Welcome to LoadBench Pro"
               description="A safety-first reloading notebook. It records what you load and the published source you cite. It will never recommend a charge or rate safety."
               actions={
-                <Link href="/safety">
-                  <Button size="sm" variant="secondary">
-                    Read safety policy
-                  </Button>
-                </Link>
+                <>
+                  <Link href="/onboarding">
+                    <Button size="sm" data-testid="dashboard-onboarding-cta">
+                      Start onboarding
+                    </Button>
+                  </Link>
+                  <Link href="/safety">
+                    <Button size="sm" variant="secondary">
+                      Read safety policy
+                    </Button>
+                  </Link>
+                </>
               }
             />
             <CardBody>

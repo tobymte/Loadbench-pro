@@ -182,7 +182,14 @@ export default async function AdminModelValidationPage({
           ]}
         />
 
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-4">
+          <Link
+            href="/admin/model-validation/templates"
+            className="text-[12px] text-accent hover:text-accent-hover"
+            data-testid="templates-link"
+          >
+            Dataset templates →
+          </Link>
           <Link
             href="/admin/model-validation/reporting"
             className="text-[12px] text-accent hover:text-accent-hover"
