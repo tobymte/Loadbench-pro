@@ -24,9 +24,11 @@ const SAMPLE_CSV = `shot,velocityFps,note
 export function ChronoImportForm({
   loads,
   rifles,
+  saveAvailable = true,
 }: {
   loads: Option[];
   rifles: Option[];
+  saveAvailable?: boolean;
 }) {
   const router = useRouter();
   const [csv, setCsv] = useState('');
@@ -65,6 +67,17 @@ export function ChronoImportForm({
     e.preventDefault();
     setIssues([]);
     setSavedSummary(null);
+
+    if (!saveAvailable) {
+      setIssues([
+        {
+          code: 'NO_DATABASE',
+          message:
+            'Saving is disabled because no database is configured. Preview-only mode.',
+        },
+      ]);
+      return;
+    }
 
     if (!loadId) {
       setIssues([
@@ -115,6 +128,7 @@ export function ChronoImportForm({
       const out = (await res.json().catch(() => ({}))) as {
         issues?: Array<{ path?: Array<string | number>; code?: string; message?: string }>;
         error?: string;
+        message?: string;
       };
       if (Array.isArray(out.issues) && out.issues.length > 0) {
         setIssues(
@@ -126,7 +140,10 @@ export function ChronoImportForm({
         );
       } else {
         setIssues([
-          { code: out.error ?? 'UNKNOWN', message: 'Could not import chronograph data.' },
+          {
+            code: out.error ?? 'UNKNOWN',
+            message: out.message ?? 'Could not import chronograph data.',
+          },
         ]);
       }
     });
@@ -148,7 +165,8 @@ export function ChronoImportForm({
             value={loadId}
             onChange={(e) => setLoadId(e.target.value)}
             data-testid="chrono-load"
-            required
+            required={saveAvailable}
+            disabled={!saveAvailable}
           >
             <option value="">— Select a load —</option>
             {loads.map((o) => (
@@ -170,6 +188,7 @@ export function ChronoImportForm({
             value={rifleId}
             onChange={(e) => setRifleId(e.target.value)}
             data-testid="chrono-rifle"
+            disabled={!saveAvailable}
           >
             <option value="">— None —</option>
             {rifles.map((o) => (
@@ -325,14 +344,24 @@ export function ChronoImportForm({
       <div className="flex items-center gap-3 pt-1">
         <Button
           type="submit"
-          disabled={pending || !preview || preview.parse.shots.length === 0}
+          disabled={
+            pending ||
+            !saveAvailable ||
+            !preview ||
+            preview.parse.shots.length === 0
+          }
           data-testid="chrono-submit"
         >
-          {pending ? 'Importing…' : 'Import as range session'}
+          {pending
+            ? 'Importing…'
+            : saveAvailable
+              ? 'Import as range session'
+              : 'Save disabled — preview only'}
         </Button>
         <span className="text-[11px] text-text-faint">
-          Imported observations are records only. No charge or pressure
-          validation occurs on import.
+          {saveAvailable
+            ? 'Imported observations are records only. No charge or pressure validation occurs on import.'
+            : 'Preview-only mode: parse and summarize CSV locally. Configure DATABASE_URL to save sessions.'}
         </span>
       </div>
     </form>
