@@ -29,8 +29,9 @@ type SearchParams = { ok?: string; error?: string };
 export default async function AdminEntitlementsPage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams: Promise<SearchParams>;
 }) {
+  const sp = await searchParams;
   const admin = await getAdminContext();
 
   if (!admin.isAdmin) {
@@ -100,20 +101,20 @@ export default async function AdminEntitlementsPage({
           </div>
         )}
 
-        {searchParams.ok && (
+        {sp.ok && (
           <div
             className="rounded-md border border-success/40 bg-success-subtle px-4 py-3 text-[13px] text-text"
             data-testid="admin-entitlements-ok"
           >
-            {searchParams.ok}
+            {sp.ok}
           </div>
         )}
-        {searchParams.error && (
+        {sp.error && (
           <div
             className="rounded-md border border-danger/40 bg-danger-subtle px-4 py-3 text-[13px] text-text"
             data-testid="admin-entitlements-error"
           >
-            {searchParams.error}
+            {sp.error}
           </div>
         )}
 

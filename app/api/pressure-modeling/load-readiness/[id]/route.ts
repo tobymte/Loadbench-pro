@@ -7,11 +7,12 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   const ctx = await getWorkspaceContext();
   const load = await prisma.load.findFirst({
-    where: { id: params.id, workspaceId: ctx.workspaceId },
+    where: { id, workspaceId: ctx.workspaceId },
     include: {
       cartridge: true,
       bullet: true,

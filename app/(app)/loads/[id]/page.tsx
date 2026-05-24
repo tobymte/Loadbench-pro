@@ -12,11 +12,12 @@ export const dynamic = 'force-dynamic';
 export default async function LoadDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const ctx = await getWorkspaceContext();
   const load = await prisma.load.findFirst({
-    where: { id: params.id, workspaceId: ctx.workspaceId },
+    where: { id, workspaceId: ctx.workspaceId },
     include: {
       cartridge: { select: { name: true } },
       bullet: true,

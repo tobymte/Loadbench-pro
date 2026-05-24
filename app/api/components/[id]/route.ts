@@ -32,13 +32,14 @@ const bodyInput = z.union([patchInput, adjustmentInput]);
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   const ctx = await getWorkspaceContext();
   assertCanWrite(ctx);
 
   const existing = await prisma.component.findFirst({
-    where: { id: params.id, workspaceId: ctx.workspaceId },
+    where: { id, workspaceId: ctx.workspaceId },
   });
   if (!existing) {
     return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
@@ -72,11 +73,12 @@ export async function PATCH(
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   const ctx = await getWorkspaceContext();
   const row = await prisma.component.findFirst({
-    where: { id: params.id, workspaceId: ctx.workspaceId },
+    where: { id, workspaceId: ctx.workspaceId },
   });
   if (!row) {
     return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });

@@ -35,8 +35,9 @@ export const dynamic = 'force-dynamic';
 //     publishedMaxGr so the canonical validator can enforce a ceiling.
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   const ctx = await getWorkspaceContext();
   assertCanWrite(ctx);
 
@@ -52,7 +53,7 @@ export async function POST(
   const body = parsed.data;
 
   const row = await prisma.publishedLoadRowDraft.findFirst({
-    where: { id: params.id, workspaceId: ctx.workspaceId },
+    where: { id, workspaceId: ctx.workspaceId },
     include: {
       source: { select: { id: true, title: true, publishedMaxGr: true } },
       import: { select: { id: true, title: true } },

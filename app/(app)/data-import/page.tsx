@@ -24,12 +24,13 @@ const VALID_CATEGORIES: WizardCategory[] = [
 // pressure, recommend charges, or label any row as safe/unsafe. Published-
 // manual rows are staged for verification — never auto-marked safe.
 
-export default function DataImportPage({
+export default async function DataImportPage({
   searchParams,
 }: {
-  searchParams?: { category?: string };
+  searchParams?: Promise<{ category?: string }>;
 }) {
-  const raw = searchParams?.category;
+  const sp = searchParams ? await searchParams : undefined;
+  const raw = sp?.category;
   const initial: WizardCategory | undefined =
     raw && (VALID_CATEGORIES as string[]).includes(raw)
       ? (raw as WizardCategory)

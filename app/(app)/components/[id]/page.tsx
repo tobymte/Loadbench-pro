@@ -26,11 +26,12 @@ const KIND_DEFAULT_UNIT: Record<string, string> = {
 export default async function ComponentDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const ctx = await getWorkspaceContext();
   const component = await prisma.component.findFirst({
-    where: { id: params.id, workspaceId: ctx.workspaceId },
+    where: { id, workspaceId: ctx.workspaceId },
   });
   if (!component) {
     notFound();

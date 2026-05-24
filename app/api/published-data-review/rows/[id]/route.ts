@@ -15,8 +15,9 @@ export const dynamic = 'force-dynamic';
 // load data — it only flags the transcription as reviewed.
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   const ctx = await getWorkspaceContext();
   assertCanWrite(ctx);
 
@@ -32,7 +33,7 @@ export async function PATCH(
   const data = parsed.data;
 
   const existing = await prisma.publishedLoadRowDraft.findFirst({
-    where: { id: params.id, workspaceId: ctx.workspaceId },
+    where: { id, workspaceId: ctx.workspaceId },
     select: { id: true, status: true },
   });
   if (!existing) {
@@ -101,13 +102,14 @@ export async function PATCH(
 // DELETE /api/published-data-review/rows/[id]
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   const ctx = await getWorkspaceContext();
   assertCanWrite(ctx);
 
   const existing = await prisma.publishedLoadRowDraft.findFirst({
-    where: { id: params.id, workspaceId: ctx.workspaceId },
+    where: { id, workspaceId: ctx.workspaceId },
     select: { id: true },
   });
   if (!existing) {

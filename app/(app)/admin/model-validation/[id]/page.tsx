@@ -30,9 +30,10 @@ export default async function AdminModelValidationDatasetPage({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams: SearchParams;
+  params: Promise<{ id: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
+  const [{ id: paramsId }, sp] = await Promise.all([params, searchParams]);
   const admin = await getAdminContext();
   if (!admin.isAdmin) {
     return (
@@ -76,7 +77,7 @@ export default async function AdminModelValidationDatasetPage({
 
   let dataset: Awaited<ReturnType<typeof getDataset>> = null;
   try {
-    dataset = await getDataset(ctx.workspaceId, params.id);
+    dataset = await getDataset(ctx.workspaceId, paramsId);
   } catch (e) {
     return (
       <>
@@ -137,14 +138,14 @@ export default async function AdminModelValidationDatasetPage({
           ]}
         />
 
-        {searchParams.ok && (
+        {sp.ok && (
           <div className="rounded-md border border-success/40 bg-success-subtle px-4 py-3 text-[13px] text-text">
-            {searchParams.ok}
-            {searchParams.runId && (
+            {sp.ok}
+            {sp.runId && (
               <>
                 {' '}
                 <Link
-                  href={`#run-${searchParams.runId}`}
+                  href={`#run-${sp.runId}`}
                   className="text-accent hover:text-accent-hover"
                 >
                   Jump to run →
@@ -153,9 +154,9 @@ export default async function AdminModelValidationDatasetPage({
             )}
           </div>
         )}
-        {searchParams.error && (
+        {sp.error && (
           <div className="rounded-md border border-danger/40 bg-danger-subtle px-4 py-3 text-[13px] text-text">
-            {searchParams.error}
+            {sp.error}
           </div>
         )}
 

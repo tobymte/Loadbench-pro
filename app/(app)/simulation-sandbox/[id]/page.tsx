@@ -63,12 +63,13 @@ function fmtBool(v: boolean | null | undefined): string {
 export default async function SimulationRunDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const ctx = await getWorkspaceContext();
 
   const run = await prisma.simulationRun.findFirst({
-    where: { id: params.id, workspaceId: ctx.workspaceId },
+    where: { id, workspaceId: ctx.workspaceId },
     include: {
       modelVersion: { select: { id: true, name: true, status: true } },
       load: { select: { id: true, name: true } },

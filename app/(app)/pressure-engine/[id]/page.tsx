@@ -107,8 +107,9 @@ function parseInputs(
 export default async function PressureEngineRunDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   let ctx: Awaited<ReturnType<typeof getWorkspaceContext>>;
   try {
     ctx = await getWorkspaceContext();
@@ -157,7 +158,7 @@ export default async function PressureEngineRunDetailPage({
 
   let run: Awaited<ReturnType<typeof loadRun>>;
   try {
-    run = await loadRun(ctx.workspaceId, params.id);
+    run = await loadRun(ctx.workspaceId, id);
   } catch (e) {
     return <SetupNotice message={describeError(e)} />;
   }
