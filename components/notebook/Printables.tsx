@@ -72,22 +72,37 @@ export type PrintableComponent = {
   burnRateLabel: string | null;
   lotNumber: string | null;
   notes: string | null;
+  quantityOnHand?: number | null;
 };
 
-type Mode = 'cards' | 'labels';
+export type PrintableSource = {
+  id: string;
+  title: string;
+  publisher: string | null;
+  edition: string | null;
+  publishedYear: number | null;
+  citation: string | null;
+  url: string | null;
+  publishedMaxGr: number | null;
+};
+
+type Mode = 'cards' | 'labels' | 'load-labels' | 'sources';
 
 export function Printables({
   loads,
   components,
+  sources = [],
 }: {
   loads: PrintableLoad[];
   components: PrintableComponent[];
+  sources?: PrintableSource[];
 }) {
   const [mode, setMode] = useState<Mode>('cards');
   const [selectedLoads, setSelectedLoads] = useState<Set<string>>(new Set());
   const [selectedComponents, setSelectedComponents] = useState<Set<string>>(
     new Set(),
   );
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
 
   const visibleLoads = useMemo(
     () => loads.filter((l) => selectedLoads.has(l.id)),
@@ -96,6 +111,10 @@ export function Printables({
   const visibleComponents = useMemo(
     () => components.filter((c) => selectedComponents.has(c.id)),
     [components, selectedComponents],
+  );
+  const visibleSources = useMemo(
+    () => sources.filter((s) => selectedSources.has(s.id)),
+    [sources, selectedSources],
   );
 
   function toggleLoad(id: string) {
@@ -116,6 +135,15 @@ export function Printables({
     });
   }
 
+  function toggleSource(id: string) {
+    setSelectedSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   function selectAllLoads() {
     setSelectedLoads(new Set(loads.map((l) => l.id)));
   }
@@ -124,14 +152,26 @@ export function Printables({
     setSelectedComponents(new Set(components.map((c) => c.id)));
   }
 
+  function selectAllSources() {
+    setSelectedSources(new Set(sources.map((s) => s.id)));
+  }
+
   function clearSelection() {
     setSelectedLoads(new Set());
     setSelectedComponents(new Set());
+    setSelectedSources(new Set());
   }
 
   function doPrint() {
     if (typeof window !== 'undefined') window.print();
   }
+
+  const selectionCount =
+    mode === 'cards' || mode === 'load-labels'
+      ? visibleLoads.length
+      : mode === 'labels'
+        ? visibleComponents.length
+        : visibleSources.length;
 
   return (
     <div className="space-y-6">
@@ -139,9 +179,9 @@ export function Printables({
         <Card>
           <CardHeader
             title="Printables"
-            description="Select loads or components, choose a layout, and print. Cards and labels are user-entered citations and observations — LoadBench Pro does not recommend or validate load safety."
+            description="Pick a layout, choose what to include, and print from your browser. Cards and labels are user-entered citations and observations — LoadBench Pro does not recommend or validate load safety."
             actions={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
                 <Button
                   size="sm"
                   variant={mode === 'cards' ? 'primary' : 'secondary'}
@@ -149,6 +189,14 @@ export function Printables({
                   data-testid="mode-cards"
                 >
                   Range cards
+                </Button>
+                <Button
+                  size="sm"
+                  variant={mode === 'load-labels' ? 'primary' : 'secondary'}
+                  onClick={() => setMode('load-labels')}
+                  data-testid="mode-load-labels"
+                >
+                  Load labels
                 </Button>
                 <Button
                   size="sm"
@@ -160,12 +208,16 @@ export function Printables({
                 </Button>
                 <Button
                   size="sm"
+                  variant={mode === 'sources' ? 'primary' : 'secondary'}
+                  onClick={() => setMode('sources')}
+                  data-testid="mode-sources"
+                >
+                  Source verification
+                </Button>
+                <Button
+                  size="sm"
                   onClick={doPrint}
-                  disabled={
-                    mode === 'cards'
-                      ? visibleLoads.length === 0
-                      : visibleComponents.length === 0
-                  }
+                  disabled={selectionCount === 0}
                   data-testid="print-button"
                 >
                   Print
@@ -174,7 +226,21 @@ export function Printables({
             }
           />
           <CardBody>
-            {mode === 'cards' ? (
+            <div className="mb-4 rounded-md border border-border bg-bg-alt/40 px-3 py-2 text-[12px] text-text-muted">
+              <p>
+                <strong className="text-text">Tip:</strong> after pressing
+                Print, your browser&apos;s print dialog opens. Choose{' '}
+                <em>Save as PDF</em> for a digital range card, or{' '}
+                <em>portrait, margins: default</em> for paper. Sidebar, top
+                bar, and safety banner are hidden automatically.
+              </p>
+              <p className="mt-2">
+                Always verify charge, OAL, and source against the original
+                document before loading. Printed range cards are records —
+                never charge recommendations.
+              </p>
+            </div>
+            {mode === 'cards' || mode === 'load-labels' ? (
               <LoadSelector
                 loads={loads}
                 selected={selectedLoads}
@@ -182,12 +248,20 @@ export function Printables({
                 onAll={selectAllLoads}
                 onClear={clearSelection}
               />
-            ) : (
+            ) : mode === 'labels' ? (
               <ComponentSelector
                 components={components}
                 selected={selectedComponents}
                 onToggle={toggleComponent}
                 onAll={selectAllComponents}
+                onClear={clearSelection}
+              />
+            ) : (
+              <SourceSelector
+                sources={sources}
+                selected={selectedSources}
+                onToggle={toggleSource}
+                onAll={selectAllSources}
                 onClear={clearSelection}
               />
             )}
@@ -203,6 +277,16 @@ export function Printables({
             ))}
           </div>
         )}
+        {mode === 'load-labels' && visibleLoads.length > 0 && (
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 print:grid-cols-2 print:gap-2"
+            data-testid="printable-load-labels"
+          >
+            {visibleLoads.map((load) => (
+              <LoadLabel key={load.id} load={load} />
+            ))}
+          </div>
+        )}
         {mode === 'labels' && visibleComponents.length > 0 && (
           <div
             className="grid grid-cols-1 md:grid-cols-2 gap-4 print:grid-cols-2 print:gap-2"
@@ -213,8 +297,176 @@ export function Printables({
             ))}
           </div>
         )}
+        {mode === 'sources' && visibleSources.length > 0 && (
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 print:grid-cols-2 print:gap-2"
+            data-testid="printable-sources"
+          >
+            {visibleSources.map((s) => (
+              <SourceVerificationCard key={s.id} source={s} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function LoadLabel({ load }: { load: PrintableLoad }) {
+  const id = load.id.slice(-6).toUpperCase();
+  return (
+    <article className="print-label border border-border bg-bg-surface rounded-md p-3 break-inside-avoid print:border-black print:bg-white print:text-black">
+      <header className="flex items-baseline justify-between border-b border-border print:border-black pb-1.5 mb-2">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-text-faint print:text-black">
+            Load · {load.status}
+          </div>
+          <h3 className="text-sm font-semibold tracking-tight">{load.name}</h3>
+        </div>
+        <div className="text-[10px] text-text-muted print:text-black font-mono">
+          #{id}
+        </div>
+      </header>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
+        <Field label="Cartridge" value={load.cartridge?.name ?? '—'} />
+        <Field
+          label="Charge (gr)"
+          value={load.chargeGr != null ? String(load.chargeGr) : '—'}
+          mono
+        />
+        <Field
+          label="Bullet"
+          value={
+            load.bullet
+              ? `${load.bullet.manufacturer} ${load.bullet.model}${load.bullet.bulletWeightGr ? ` ${load.bullet.bulletWeightGr}gr` : ''}`
+              : '—'
+          }
+        />
+        <Field
+          label="Powder"
+          value={
+            load.powder
+              ? `${load.powder.manufacturer} ${load.powder.model}`
+              : '—'
+          }
+        />
+        <Field
+          label="Primer"
+          value={
+            load.primer ? `${load.primer.manufacturer} ${load.primer.model}` : '—'
+          }
+        />
+        <Field
+          label="OAL (in)"
+          value={load.cartridgeOalIn != null ? String(load.cartridgeOalIn) : '—'}
+          mono
+        />
+      </dl>
+      <p className="mt-2 text-[10px] text-text-muted print:text-black leading-snug">
+        Source:{' '}
+        {load.source
+          ? `${load.source.title}${load.source.publisher ? ` — ${load.source.publisher}` : ''}${load.source.citation ? ` · ${load.source.citation}` : ''}`
+          : 'no source cited'}
+      </p>
+      <p className="mt-1 text-[10px] text-text-faint print:text-black">
+        Verify against your notebook and the cited document before loading.
+        Not a charge recommendation.
+      </p>
+    </article>
+  );
+}
+
+function SourceSelector({
+  sources,
+  selected,
+  onToggle,
+  onAll,
+  onClear,
+}: {
+  sources: PrintableSource[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  onAll: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <Button size="sm" variant="ghost" onClick={onAll}>
+          Select all
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClear}>
+          Clear
+        </Button>
+        <span className="text-[11px] text-text-faint ml-auto">
+          {selected.size} selected
+        </span>
+      </div>
+      {sources.length === 0 ? (
+        <p className="text-sm text-text-muted">
+          No sources recorded yet. Record sources to print verification cards.
+        </p>
+      ) : (
+        <ul className="divide-y divide-border">
+          {sources.map((s) => (
+            <li key={s.id} className="py-2">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.has(s.id)}
+                  onChange={() => onToggle(s.id)}
+                  className="!w-4 !h-4 mt-1"
+                  data-testid={`source-pick-${s.id}`}
+                />
+                <div className="text-sm">
+                  <div className="font-medium text-text">{s.title}</div>
+                  <div className="text-[11px] text-text-muted">
+                    {s.publisher ?? '—'}
+                    {s.edition ? ` · ${s.edition}` : ''}
+                    {s.publishedYear ? ` · ${s.publishedYear}` : ''}
+                    {s.citation ? ` · ${s.citation}` : ''}
+                  </div>
+                </div>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SourceVerificationCard({ source }: { source: PrintableSource }) {
+  return (
+    <article className="print-label border border-border bg-bg-surface rounded-md p-3 break-inside-avoid print:border-black print:bg-white print:text-black">
+      <header className="border-b border-border print:border-black pb-1.5 mb-2">
+        <div className="text-[10px] uppercase tracking-wider text-text-faint print:text-black">
+          Source verification
+        </div>
+        <h3 className="text-sm font-semibold tracking-tight">{source.title}</h3>
+      </header>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
+        <Field label="Publisher" value={source.publisher ?? '—'} />
+        <Field label="Edition" value={source.edition ?? '—'} />
+        <Field
+          label="Year"
+          value={source.publishedYear != null ? String(source.publishedYear) : '—'}
+          mono
+        />
+        <Field label="Citation" value={source.citation ?? '—'} />
+      </dl>
+      {source.url && (
+        <p className="mt-2 text-[10px] text-text-muted print:text-black break-all">
+          URL: {source.url}
+        </p>
+      )}
+      <NoteBox label="Verified by · date · initials" small />
+      <p className="mt-1 text-[10px] text-text-faint print:text-black leading-snug">
+        Confirm publisher, edition, page, and any per-row maximum charge
+        against the original document. Sign before citing this source on a
+        load.
+      </p>
+    </article>
   );
 }
 

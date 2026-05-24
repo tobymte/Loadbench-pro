@@ -14,10 +14,25 @@ export type ChronoInvalidRow = {
   reason: string;
 };
 
+export type ChronoWarning = {
+  code:
+    | 'UNIT_MPS_CONVERTED'
+    | 'SUSPICIOUS_LOW'
+    | 'SUSPICIOUS_HIGH'
+    | 'MISSING_SHOT_NUMBERS'
+    | 'DUPLICATE_SHOT_NUMBERS'
+    | 'OUTLIER_SD';
+  message: string;
+};
+
+export type ChronoUnit = 'fps' | 'mps' | 'unknown';
+
 export type ChronoParseResult = {
   shots: ChronoShot[];
   invalid: ChronoInvalidRow[];
   headerDetected: boolean;
+  detectedUnit: ChronoUnit;
+  warnings: ChronoWarning[];
 };
 
 export type ChronoSummary = {
@@ -36,14 +51,28 @@ const SHOT_HEADERS = new Set([
   'shotno',
   'no',
   '#',
+  'index',
 ]);
 const VELOCITY_HEADERS = new Set([
   'velocity',
   'velocityfps',
   'velocity(fps)',
+  'velocity(f/s)',
   'fps',
   'vel',
   'v',
+  'speed',
+  'muzzlevelocity',
+  'mv',
+  // Common manufacturer variants
+  'velocityfeetpersecond',
+]);
+const VELOCITY_HEADERS_MPS = new Set([
+  'velocitymps',
+  'velocity(mps)',
+  'velocity(m/s)',
+  'mps',
+  'm/s',
 ]);
 const NOTE_HEADERS = new Set(['note', 'notes', 'comment', 'comments']);
 
@@ -79,6 +108,27 @@ function splitCsvLine(line: string): string[] {
   return cells.map((c) => c.trim());
 }
 
+function detectDelimiter(line: string): ',' | '\t' | ';' {
+  // Pick whichever delimiter produces more cells, preferring comma when tied.
+  const counts: Record<',' | '\t' | ';', number> = {
+    ',': (line.match(/,/g) ?? []).length,
+    '\t': (line.match(/\t/g) ?? []).length,
+    ';': (line.match(/;/g) ?? []).length,
+  };
+  if (counts['\t'] > counts[','] && counts['\t'] > counts[';']) return '\t';
+  if (counts[';'] > counts[',']) return ';';
+  return ',';
+}
+
+function splitLine(line: string, delimiter: ',' | '\t' | ';'): string[] {
+  if (delimiter === ',') return splitCsvLine(line);
+  // Simple split for tab / semicolon; chronograph exports rarely embed those
+  // inside quoted strings.
+  return line
+    .split(delimiter === '\t' ? /\t/ : /;/)
+    .map((c) => c.trim().replace(/^"|"$/g, ''));
+}
+
 export function parseChronoCsv(csv: string): ChronoParseResult {
   const lines = csv
     .split(/\r?\n/)
@@ -87,25 +137,28 @@ export function parseChronoCsv(csv: string): ChronoParseResult {
 
   const shots: ChronoShot[] = [];
   const invalid: ChronoInvalidRow[] = [];
+  const warnings: ChronoWarning[] = [];
+  let detectedUnit: ChronoUnit = 'unknown';
 
   if (lines.length === 0) {
-    return { shots, invalid, headerDetected: false };
+    return { shots, invalid, headerDetected: false, detectedUnit, warnings };
   }
 
-  // Detect header: first row contains no parseable velocity number in the
-  // first numeric-looking cell. If first cell tokens look like labels, treat
-  // as header.
+  const delimiter = detectDelimiter(lines[0]);
+
   let velocityIdx = 1;
   let shotIdx = 0;
   let noteIdx: number | null = 2;
   let headerDetected = false;
   let startRow = 0;
+  let unitIsMps = false;
 
-  const firstCells = splitCsvLine(lines[0]).map(normalizeHeader);
+  const firstCells = splitLine(lines[0], delimiter).map(normalizeHeader);
   const looksLikeHeader = firstCells.some(
     (c) =>
       SHOT_HEADERS.has(c) ||
       VELOCITY_HEADERS.has(c) ||
+      VELOCITY_HEADERS_MPS.has(c) ||
       NOTE_HEADERS.has(c),
   );
 
@@ -117,14 +170,19 @@ export function parseChronoCsv(csv: string): ChronoParseResult {
     noteIdx = null;
     firstCells.forEach((c, idx) => {
       if (SHOT_HEADERS.has(c) && shotIdx === -1) shotIdx = idx;
-      else if (VELOCITY_HEADERS.has(c) && velocityIdx === -1) velocityIdx = idx;
-      else if (NOTE_HEADERS.has(c) && noteIdx === null) noteIdx = idx;
+      else if (VELOCITY_HEADERS.has(c) && velocityIdx === -1) {
+        velocityIdx = idx;
+        detectedUnit = 'fps';
+      } else if (VELOCITY_HEADERS_MPS.has(c) && velocityIdx === -1) {
+        velocityIdx = idx;
+        unitIsMps = true;
+        detectedUnit = 'mps';
+      } else if (NOTE_HEADERS.has(c) && noteIdx === null) noteIdx = idx;
     });
     if (velocityIdx === -1) {
-      // Fallback: pick first column that parses as number in row 1.
       const next = lines[1];
       if (next) {
-        const cells = splitCsvLine(next);
+        const cells = splitLine(next, delimiter);
         for (let i = 0; i < cells.length; i++) {
           if (Number.isFinite(Number(cells[i]))) {
             velocityIdx = i;
@@ -136,7 +194,7 @@ export function parseChronoCsv(csv: string): ChronoParseResult {
   }
 
   for (let i = startRow; i < lines.length; i++) {
-    const cells = splitCsvLine(lines[i]);
+    const cells = splitLine(lines[i], delimiter);
     if (cells.length === 0 || cells.every((c) => c === '')) continue;
 
     const rowIndex = i + 1;
@@ -168,10 +226,19 @@ export function parseChronoCsv(csv: string): ChronoParseResult {
       invalid.push({
         rowIndex,
         raw: lines[i],
-        reason: 'No velocity value parsed.',
+        reason: 'No velocity value parsed (column non-numeric or empty).',
       });
       continue;
     }
+
+    if (unitIsMps) {
+      velocity = velocity * 3.28084;
+    } else if (detectedUnit === 'unknown' && velocity > 0 && velocity < 1500) {
+      // Heuristic: many m/s muzzle velocities for centerfire rifles fall in
+      // 600–1100 m/s. If header didn't tell us and the value looks too low for
+      // fps, leave it alone but warn — never silently convert.
+    }
+
     if (velocity <= 0 || velocity > 10000) {
       invalid.push({
         rowIndex,
@@ -184,12 +251,77 @@ export function parseChronoCsv(csv: string): ChronoParseResult {
     shots.push({
       rowIndex,
       shot: shotNumber,
-      velocityFps: velocity,
+      velocityFps: Math.round(velocity * 10) / 10,
       note,
     });
   }
 
-  return { shots, invalid, headerDetected };
+  if (detectedUnit === 'unknown' && shots.length > 0) {
+    const avg = shots.reduce((a, s) => a + s.velocityFps, 0) / shots.length;
+    if (avg > 0 && avg < 1500) {
+      // Treat as m/s if all values look like metric muzzle speeds.
+      detectedUnit = 'mps';
+      for (const s of shots) {
+        s.velocityFps = Math.round(s.velocityFps * 3.28084 * 10) / 10;
+      }
+      warnings.push({
+        code: 'UNIT_MPS_CONVERTED',
+        message:
+          'Detected metric (m/s) values based on magnitude. Converted to fps. If your chrono actually exports fps, double-check the file.',
+      });
+    } else {
+      detectedUnit = 'fps';
+    }
+  } else if (unitIsMps) {
+    warnings.push({
+      code: 'UNIT_MPS_CONVERTED',
+      message:
+        'Detected m/s column header. Values were converted to fps for the session record.',
+    });
+  }
+
+  if (shots.length > 0) {
+    const numbered = shots.filter((s) => s.shot != null);
+    if (numbered.length === 0) {
+      warnings.push({
+        code: 'MISSING_SHOT_NUMBERS',
+        message:
+          'No shot numbers detected — shots will be numbered in import order.',
+      });
+    } else if (numbered.length < shots.length) {
+      warnings.push({
+        code: 'MISSING_SHOT_NUMBERS',
+        message: `Some rows are missing shot numbers (${shots.length - numbered.length} of ${shots.length}).`,
+      });
+    }
+    const seen = new Set<number>();
+    for (const s of numbered) {
+      if (s.shot != null && seen.has(s.shot)) {
+        warnings.push({
+          code: 'DUPLICATE_SHOT_NUMBERS',
+          message: `Duplicate shot number detected (#${s.shot}).`,
+        });
+        break;
+      }
+      if (s.shot != null) seen.add(s.shot);
+    }
+    const vmin = Math.min(...shots.map((s) => s.velocityFps));
+    const vmax = Math.max(...shots.map((s) => s.velocityFps));
+    if (vmin < 500) {
+      warnings.push({
+        code: 'SUSPICIOUS_LOW',
+        message: `One or more velocities are below 500 fps (min ${vmin}). Confirm units and column mapping.`,
+      });
+    }
+    if (vmax > 5000) {
+      warnings.push({
+        code: 'SUSPICIOUS_HIGH',
+        message: `One or more velocities exceed 5000 fps (max ${vmax}). Confirm the column maps to muzzle velocity.`,
+      });
+    }
+  }
+
+  return { shots, invalid, headerDetected, detectedUnit, warnings };
 }
 
 export function summarizeChrono(shots: ChronoShot[]): ChronoSummary {

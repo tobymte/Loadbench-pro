@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import {
@@ -21,6 +21,62 @@ const SAMPLE_CSV = `shot,velocityFps,note
 4,2744,
 5,2741,`;
 
+type TemplateKey = 'generic' | 'garmin' | 'labradar' | 'magnetospeed' | 'caldwell';
+
+const TEMPLATES: Record<TemplateKey, { label: string; description: string; csv: string }> = {
+  generic: {
+    label: 'Generic (shot, velocity, note)',
+    description: 'Simple format. First column shot number, second velocity in fps, third note.',
+    csv: SAMPLE_CSV,
+  },
+  garmin: {
+    label: 'Garmin Xero C1 / Pro (CSV export)',
+    description:
+      'Garmin exports include header rows like "Shot #,Speed,Time". The importer recognises both fps and m/s headers — values are auto-converted.',
+    csv: `Shot #,Speed (fps),Time
+1,2735,12:00:01
+2,2742,12:00:42
+3,2738,12:01:18
+4,2744,12:01:55
+5,2741,12:02:28`,
+  },
+  labradar: {
+    label: 'LabRadar (Trk### CSV)',
+    description:
+      'LabRadar saves per-track CSVs. The importer skips comment lines and reads the "V0" column when present.',
+    csv: `# Device: LabRadar
+# Series: 01 - Range A
+Shot,V0 (fps),Note
+1,2735,
+2,2742,foul shot
+3,2738,
+4,2744,
+5,2741,`,
+  },
+  magnetospeed: {
+    label: 'MagnetoSpeed (V3 / Sporter)',
+    description:
+      'MagnetoSpeed exports list shot index and velocity. Tabs and semicolons are auto-detected.',
+    csv: `Series\tShot\tVelocity (fps)
+1\t1\t2735
+1\t2\t2742
+1\t3\t2738
+1\t4\t2744
+1\t5\t2741`,
+  },
+  caldwell: {
+    label: 'Caldwell Ballistic Precision',
+    description:
+      'Caldwell exports use comma-separated "Shot,Velocity (FPS),Notes" with a header row.',
+    csv: `Shot,Velocity (FPS),Notes
+1,2735,
+2,2742,foul shot
+3,2738,
+4,2744,
+5,2741,`,
+  },
+};
+
 export function ChronoImportForm({
   loads,
   rifles,
@@ -31,7 +87,9 @@ export function ChronoImportForm({
   saveAvailable?: boolean;
 }) {
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [csv, setCsv] = useState('');
+  const [fileName, setFileName] = useState<string | null>(null);
   const [loadId, setLoadId] = useState('');
   const [rifleId, setRifleId] = useState('');
   const [location, setLocation] = useState('');
@@ -59,8 +117,27 @@ export function ChronoImportForm({
   const issuesFor = (field: string) => issues.filter((i) => i.field === field);
   const formIssues = issues.filter((i) => !i.field);
 
-  function loadSample() {
-    setCsv(SAMPLE_CSV);
+  function applyTemplate(key: TemplateKey) {
+    setCsv(TEMPLATES[key].csv);
+    setFileName(null);
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setIssues([
+        {
+          code: 'FILE_TOO_LARGE',
+          message:
+            'File is larger than 2 MB — chronograph exports should be small text files. Open it in a text editor and paste the relevant portion instead.',
+        },
+      ]);
+      return;
+    }
+    const text = await file.text();
+    setCsv(text);
+    setFileName(file.name);
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -232,24 +309,90 @@ export function ChronoImportForm({
         </div>
       </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label htmlFor="chrono-csv">CSV data</label>
-          <button
-            type="button"
-            className="text-[11px] text-accent hover:text-accent-hover"
-            onClick={loadSample}
-            data-testid="chrono-load-sample"
-          >
-            Load sample
-          </button>
+      <div className="rounded-md border border-border bg-bg-alt/30 p-3 space-y-2">
+        <div className="text-[11px] uppercase tracking-wider text-text-faint">
+          Quick start templates
         </div>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(TEMPLATES) as TemplateKey[]).map((k) => (
+            <button
+              key={k}
+              type="button"
+              className="text-[11px] border border-border rounded px-2 py-1 hover:bg-bg-alt"
+              onClick={() => applyTemplate(k)}
+              data-testid={`chrono-template-${k}`}
+              title={TEMPLATES[k].description}
+            >
+              {TEMPLATES[k].label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-text-faint">
+          Templates load a small sample so you can confirm the importer reads
+          your chrono&apos;s format. m/s values are auto-converted; tabs and
+          semicolons are auto-detected.
+        </p>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+          <label htmlFor="chrono-csv">CSV data</label>
+          <div className="flex items-center gap-3">
+            <label
+              htmlFor="chrono-file"
+              className="text-[11px] text-accent hover:text-accent-hover cursor-pointer"
+              data-testid="chrono-file-label"
+            >
+              Choose file (parsed locally)
+            </label>
+            <input
+              id="chrono-file"
+              ref={fileRef}
+              type="file"
+              accept=".csv,.txt,.tsv,text/csv,text/plain"
+              onChange={onFile}
+              className="hidden"
+              data-testid="chrono-file"
+            />
+            <button
+              type="button"
+              className="text-[11px] text-accent hover:text-accent-hover"
+              onClick={() => applyTemplate('generic')}
+              data-testid="chrono-load-sample"
+            >
+              Load sample
+            </button>
+            {csv && (
+              <button
+                type="button"
+                className="text-[11px] text-text-muted hover:text-text"
+                onClick={() => {
+                  setCsv('');
+                  setFileName(null);
+                  if (fileRef.current) fileRef.current.value = '';
+                }}
+                data-testid="chrono-clear"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+        {fileName && (
+          <p className="text-[11px] text-text-muted mb-1" data-testid="chrono-file-name">
+            Loaded <code>{fileName}</code> (parsed in browser — not uploaded
+            until you press Import).
+          </p>
+        )}
         <textarea
           id="chrono-csv"
           rows={10}
           value={csv}
-          onChange={(e) => setCsv(e.target.value)}
-          placeholder="Paste CSV from your chronograph here"
+          onChange={(e) => {
+            setCsv(e.target.value);
+            setFileName(null);
+          }}
+          placeholder="Paste CSV from your chronograph here, or choose a file above"
           className="font-mono text-[12px]"
           data-testid="chrono-csv"
         />
@@ -288,6 +431,22 @@ export function ChronoImportForm({
               value={preview.summary.maxFps != null ? `${preview.summary.maxFps} fps` : '—'}
             />
           </div>
+          <div className="text-[11px] text-text-faint">
+            Detected unit: <code>{preview.parse.detectedUnit}</code>
+            {preview.parse.headerDetected ? ' · header row detected' : ' · no header detected'}
+          </div>
+          {preview.parse.warnings.length > 0 && (
+            <ul className="space-y-1" data-testid="chrono-warnings">
+              {preview.parse.warnings.map((w, idx) => (
+                <li
+                  key={idx}
+                  className="text-[11px] text-warning border border-warning/30 bg-warning-subtle px-2 py-1 rounded"
+                >
+                  {w.message}
+                </li>
+              ))}
+            </ul>
+          )}
           {preview.parse.invalid.length > 0 && (
             <div>
               <div className="text-[11px] uppercase tracking-wider text-warning mb-1">

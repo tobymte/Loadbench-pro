@@ -94,6 +94,17 @@ export default async function DataImportPage({
                 . They are measurements and metadata only — nothing reads from
                 them to compute pressure today.
               </li>
+              <li>
+                After importing, the{' '}
+                <Link
+                  href="/data-quality"
+                  className="text-accent hover:text-accent-hover"
+                >
+                  Data quality review center
+                </Link>{' '}
+                lists any missing fields, unverified rows, and incomplete
+                citations so you can finish them up.
+              </li>
             </ul>
             <DataImportWizard initial={initial} />
           </CardBody>

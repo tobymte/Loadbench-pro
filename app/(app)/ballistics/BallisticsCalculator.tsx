@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { BallisticsCharts } from './BallisticsCharts';
 
 type Prefill = {
   id: string;
@@ -357,6 +358,8 @@ export function BallisticsCalculator({
           )}
 
           <SummaryCards points={result.points} showWind={showWind} />
+
+          <BallisticsCharts points={result.points} showWind={showWind} />
 
           <div className="overflow-x-auto">
             <table data-testid="ballistics-table">

@@ -38,22 +38,17 @@ export default async function ChronoImportPage() {
           />
           <CardBody>
             <div className="mb-4 rounded-md border border-border bg-bg-alt/40 px-4 py-3 text-[12px] text-text-muted">
-              <div className="font-medium text-text mb-1">Expected format</div>
+              <div className="font-medium text-text mb-1">
+                Choose a template or upload a CSV/TXT/TSV file
+              </div>
               <p>
-                A simple CSV with one shot per row. The first row may be a
-                header. The importer recognises <code>shot</code>,{' '}
-                <code>velocity</code>, <code>velocity (fps)</code>,{' '}
-                <code>fps</code>, and <code>note</code> column headers (case
-                insensitive). If there&apos;s no header, the importer treats
-                column 1 as shot number and column 2 as velocity, or — for a
-                single-column file — every row as a velocity.
+                The importer recognises Garmin Xero, LabRadar, MagnetoSpeed,
+                and Caldwell exports out of the box. It also detects tab and
+                semicolon delimiters, picks up m/s columns and converts them
+                to fps, and warns on suspicious velocities or duplicate shot
+                numbers. Files are parsed in your browser — nothing is
+                uploaded until you press Import.
               </p>
-              <pre className="mt-2 text-[11px] text-text-faint overflow-x-auto">
-{`shot,velocityFps,note
-1,2735,
-2,2742,foul shot
-3,2738,`}
-              </pre>
             </div>
 
             {!saveAvailable && unavailableReason && (

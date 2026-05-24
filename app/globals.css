@@ -131,4 +131,27 @@ tr:hover td {
     page-break-inside: avoid;
     break-inside: avoid;
   }
+  /* Ensure tables (range cards, ballistics) print without dark backgrounds */
+  table {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  th,
+  td {
+    border-color: #000 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  /* Hide form controls that have no print meaning */
+  button,
+  select,
+  textarea,
+  input[type='checkbox'] {
+    display: none !important;
+  }
+  /* Re-show checkboxes inside printables that double as signature checkboxes */
+  .print-card input[type='checkbox'],
+  .print-label input[type='checkbox'] {
+    display: inline-block !important;
+  }
 }

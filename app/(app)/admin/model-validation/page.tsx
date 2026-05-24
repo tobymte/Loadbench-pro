@@ -182,6 +182,16 @@ export default async function AdminModelValidationPage({
           ]}
         />
 
+        <div className="flex justify-end">
+          <Link
+            href="/admin/model-validation/reporting"
+            className="text-[12px] text-accent hover:text-accent-hover"
+            data-testid="reporting-link"
+          >
+            Reporting dashboard →
+          </Link>
+        </div>
+
         {admin.viaLocalDevFallback && (
           <div className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[12px] text-text">
             <strong className="font-semibold">

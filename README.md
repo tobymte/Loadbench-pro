@@ -83,15 +83,18 @@ Premium users can then continue into the pressure-engine workspace via the
 those screens produce a PSI value, charge recommendation, or safe/unsafe
 verdict — they are non-operational by design.
 
-Open <http://localhost:3000>. The landing page lives at `/`; the app shell lives under the `(app)` route group (`/dashboard`, `/cartridges`, `/components`, `/rifles`, `/sources`, `/loads`, `/loads/new`, `/loads/[id]`, `/sessions`, `/notebook`, `/compare`, `/ballistics`, `/chrono-import`, `/pressure-modeling`, `/pressure-engine`, `/simulation-sandbox`, `/solver-inputs`, `/published-data-review`, `/data-tools`, `/settings`). The required-reading safety page is at `/safety`.
+Open <http://localhost:3000>. The landing page lives at `/`; the app shell lives under the `(app)` route group (`/dashboard`, `/cartridges`, `/components`, `/rifles`, `/sources`, `/loads`, `/loads/new`, `/loads/[id]`, `/sessions`, `/notebook`, `/compare`, `/ballistics`, `/chrono-import`, `/pressure-modeling`, `/pressure-engine`, `/simulation-sandbox`, `/solver-inputs`, `/published-data-review`, `/data-quality`, `/data-tools`, `/settings`). The required-reading safety page is at `/safety`.
 
 ### Tools
 
-| Route             | Purpose                                                                                                                                       |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/compare`        | Filterable side-by-side load comparison from observed session data only. No safety or pressure validation.                                   |
-| `/chrono-import`  | Paste chronograph CSV and import it as a `RangeSession` with computed avg / ES / SD. Schema-compatible aggregate import only.                |
-| `/ballistics`     | Educational G1 external-ballistics trajectory estimate from user-entered muzzle velocity, weight, BC, zero, etc. Not a load engine.          |
+| Route                | Purpose                                                                                                                                       |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/compare`           | Filterable side-by-side load comparison from observed session data only. No safety or pressure validation.                                   |
+| `/chrono-import`     | Paste chronograph CSV or upload a file from Garmin / LabRadar / MagnetoSpeed / Caldwell. Detects m/s, tab, semicolon delimiters; warns on suspicious velocities, duplicate shots, missing shot numbers. Saves as a `RangeSession`.|
+| `/ballistics`        | External G1 trajectory estimate (drop, drift, velocity, energy, time of flight) with SVG charts. Downrange-only — no pressure, no charge advice. |
+| `/data-quality`      | Reference data review center. Surfaces missing fields, unverified rows, duplicate-looking sources, incomplete citations, source confidence badges. Completeness only — never a safety verdict. |
+| `/notebook`          | Printable range cards, load labels, component lot labels, and source verification cards. Browser print with proper @page CSS and high-contrast layout. |
+| `/admin/model-validation/reporting` | Admin-only validation harness reporting: aggregate stats, run history, adapter status, guardrail failure telemetry, dataset coverage, completeness trends, JSON export. |
 
 ---
 
