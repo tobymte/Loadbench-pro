@@ -87,6 +87,40 @@ verdict — they are non-operational by design.
 
 Open <http://localhost:3000>. The landing page lives at `/`; the app shell lives under the `(app)` route group (`/dashboard`, `/cartridges`, `/components`, `/rifles`, `/sources`, `/loads`, `/loads/new`, `/loads/[id]`, `/sessions`, `/notebook`, `/compare`, `/ballistics`, `/chrono-import`, `/pressure-modeling`, `/pressure-engine`, `/simulation-sandbox`, `/solver-inputs`, `/published-data-review`, `/data-quality`, `/data-tools`, `/settings`). The required-reading safety page is at `/safety`.
 
+### Navigation
+
+The left sidebar is organized around tasks, not internal feature names.
+Sections are collapsible; the section containing the active page opens
+automatically.
+
+| Section            | What lives here                                                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Home**           | Dashboard with "Start here" task cards, recommended setup path, recent loads/sessions; first-login onboarding walkthrough.                     |
+| **Notebook**       | Loads, range sessions, cartridges, components & inventory, rifles, sources, printables.                                                        |
+| **Import & Review**| Guided import wizard, chronograph CSV import, published-data review, reference library (SW/CIP), data quality.                                 |
+| **Tools**          | Compare loads, ballistics estimate, pressure data inputs (solver inputs), export & bulk tools.                                                 |
+| **Pressure Lab**   | Pressure-engine overview / setup wizard / new run, test bench, validation sandbox. Premium gating still applies. No PSI or charge output.      |
+| **Account & Help** | Settings, safety policy, beta program, beta feedback.                                                                                          |
+| **Admin & Operator** | Only shown to users in `LOADBENCH_ADMIN_EMAILS`. Deployment check, deployment guide, entitlements, model validation, SW/CIP admin, beta release / issues. |
+
+A few page labels were updated for clarity. The underlying routes are
+unchanged.
+
+| Route                  | Old label                | New label                |
+| ---------------------- | ------------------------ | ------------------------ |
+| `/notebook`            | Notebook & printables    | Printables               |
+| `/onboarding`          | Onboarding               | Get started              |
+| `/cip-reference`       | SW/CIP Reference         | Reference library        |
+| `/solver-inputs`       | Solver inputs            | Pressure data inputs     |
+| `/simulation-sandbox`  | Simulation sandbox       | Validation sandbox       |
+| `/data-tools`          | Data tools               | Export & bulk tools      |
+| `/beta`                | Beta package             | Beta program             |
+| `/beta/feedback`       | Beta feedback            | Send feedback            |
+| `/data-quality`        | Data quality review      | Data quality             |
+| `/data-import`         | Guided data import       | Guided import            |
+| `/chrono-import`       | Chrono import            | Chronograph CSV          |
+| `/admin/...`           | (mixed into sidebar)     | Collapsed under Admin & Operator, hidden for non-admins |
+
 ### Tools
 
 | Route                | Purpose                                                                                                                                       |

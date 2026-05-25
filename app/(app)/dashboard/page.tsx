@@ -459,19 +459,79 @@ export default async function DashboardPage() {
           </Card>
         )}
 
-        <Card data-testid="dashboard-data-import-cta">
-          <CardHeader
-            title="Have data already?"
-            description="The Guided data import wizard takes pasted CSV/TSV and routes it to the right pipeline — published-manual rows for review, chronograph CSVs, component inventory, and solver-input measurements. Nothing is auto-marked safe."
-            actions={
-              <Link href="/data-import">
-                <Button size="sm" data-testid="dashboard-open-import">
-                  Open import wizard
-                </Button>
+        <section data-testid="dashboard-primary-tasks">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-[11px] uppercase tracking-wider text-text-faint font-medium">
+              Start here
+            </h2>
+            <span className="text-[11px] text-text-faint">Common tasks</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[
+              {
+                key: 'add-load',
+                title: 'Add a load',
+                description:
+                  'Record a charge tied to a cited published source. No charge advice — just what you loaded.',
+                href: '/loads/new',
+                cta: 'New load',
+              },
+              {
+                key: 'import',
+                title: 'Import data',
+                description:
+                  'Bring in CSV/TSV: published-manual rows, chronograph strings, components, or measurements.',
+                href: '/data-import',
+                cta: 'Open import wizard',
+              },
+              {
+                key: 'log-session',
+                title: 'Log a range session',
+                description:
+                  'Capture observed velocity, ES/SD, and group size. Paste a chrono CSV if you have one.',
+                href: '/sessions',
+                cta: 'New session',
+              },
+              {
+                key: 'review',
+                title: 'Review data',
+                description:
+                  'Verify published-manual rows and surface missing fields before citing them on a load.',
+                href: '/data-quality',
+                cta: 'Open data quality',
+              },
+              {
+                key: 'ballistics',
+                title: 'Open tools & ballistics',
+                description:
+                  'Compare loads side-by-side or run an educational G1 trajectory from your inputs.',
+                href: '/ballistics',
+                cta: 'Open ballistics',
+              },
+              {
+                key: 'pressure-setup',
+                title: 'Set up pressure validation',
+                description:
+                  'Premium validation workspace — readiness checklist, data inputs, and sandbox. No PSI output.',
+                href: '/pressure-engine/setup',
+                cta: 'Open setup wizard',
+              },
+            ].map((t) => (
+              <Link
+                key={t.key}
+                href={t.href}
+                className="rounded-lg border border-border bg-bg-surface p-4 hover:border-border-strong transition-colors flex flex-col"
+                data-testid={`primary-task-${t.key}`}
+              >
+                <h3 className="text-sm font-semibold text-text">{t.title}</h3>
+                <p className="text-[12px] text-text-muted mt-1 leading-relaxed flex-1">
+                  {t.description}
+                </p>
+                <div className="mt-3 text-[12px] text-accent">{t.cta} →</div>
               </Link>
-            }
-          />
-        </Card>
+            ))}
+          </div>
+        </section>
 
         <Card data-testid="dashboard-next-steps">
           <CardHeader
