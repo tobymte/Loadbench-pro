@@ -144,6 +144,24 @@ export default async function AdminCipReferencePage({
   const adapters = listAdapters();
   const swAdapter = adapters.find((a) => a.name === 'shooters-world-cip');
 
+  // Visibility summary — surfaced so admins importing rows immediately see
+  // why their new DRAFT rows are not visible to non-admins yet. Computed
+  // from the same `rows` listing the page already loaded; no extra query.
+  const visibility = rows.reduce(
+    (acc, r) => {
+      acc.total += 1;
+      acc[r.verificationStatus] = (acc[r.verificationStatus] ?? 0) + 1;
+      return acc;
+    },
+    {
+      total: 0,
+      VERIFIED: 0,
+      DRAFT: 0,
+      PENDING_REVIEW: 0,
+      RETIRED: 0,
+    } as Record<string, number>,
+  );
+
   return (
     <>
       <Topbar
@@ -201,6 +219,85 @@ export default async function AdminCipReferencePage({
             and the README section on this feature.
           </p>
         </div>
+
+        <Card data-testid="cip-visibility-card">
+          <CardHeader
+            title="Where these rows are visible"
+            description="Imported rows always land as DRAFT — non-admins do not see them on /cip-reference by default. Promote rows to VERIFIED individually after comparing against the cited source."
+            actions={
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/cip-reference"
+                  className="text-[12px] text-accent hover:text-accent-hover"
+                  data-testid="cip-public-view-link"
+                >
+                  Open public view (verified only) →
+                </Link>
+                <Link
+                  href="/cip-reference?includeNeedsReview=1"
+                  className="text-[12px] text-accent hover:text-accent-hover"
+                  data-testid="cip-public-view-include-link"
+                >
+                  Open public view (include needs review) →
+                </Link>
+              </div>
+            }
+          />
+          <CardBody>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-[12px]">
+              <div>
+                <div className="text-text-faint">Total rows</div>
+                <div className="text-text font-medium text-[14px]">
+                  {visibility.total}
+                </div>
+              </div>
+              <div data-testid="cip-visibility-verified">
+                <div className="text-text-faint">
+                  <Badge tone="success">verified</Badge>
+                </div>
+                <div className="text-text font-medium text-[14px]">
+                  {visibility.VERIFIED}
+                </div>
+                <div className="text-text-faint text-[11px]">
+                  Visible to all users.
+                </div>
+              </div>
+              <div data-testid="cip-visibility-draft">
+                <div className="text-text-faint">
+                  <Badge tone="accent">draft</Badge>
+                </div>
+                <div className="text-text font-medium text-[14px]">
+                  {visibility.DRAFT}
+                </div>
+                <div className="text-text-faint text-[11px]">
+                  Hidden by default; opt-in toggle on /cip-reference.
+                </div>
+              </div>
+              <div data-testid="cip-visibility-pending">
+                <div className="text-text-faint">
+                  <Badge tone="warning">pending review</Badge>
+                </div>
+                <div className="text-text font-medium text-[14px]">
+                  {visibility.PENDING_REVIEW}
+                </div>
+                <div className="text-text-faint text-[11px]">
+                  Hidden by default; opt-in toggle on /cip-reference.
+                </div>
+              </div>
+              <div data-testid="cip-visibility-retired">
+                <div className="text-text-faint">
+                  <Badge tone="neutral">retired</Badge>
+                </div>
+                <div className="text-text font-medium text-[14px]">
+                  {visibility.RETIRED}
+                </div>
+                <div className="text-text-faint text-[11px]">
+                  Never shown on /cip-reference.
+                </div>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
 
         <Card data-testid="cip-adapter-card">
           <CardHeader

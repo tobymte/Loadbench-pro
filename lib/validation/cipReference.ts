@@ -454,3 +454,75 @@ export const CIP_SAFETY_BOUNDARY_MESSAGE =
   'cited source before relying on them.';
 
 export const CIP_PRESSURE_PREDICTION_STATUS = 'disabled' as const;
+
+// Structured-notes keys produced by the bulk-import CSV parser. These are
+// reference labels transcribed from the published CIP / Shooters World table.
+// See lib/validation/cipBulkCsv.ts (EXTRA_NOTE_LABELS) for the writer side.
+// The app NEVER converts any of these into a per-handload charge / pressure
+// prediction or a safe / unsafe verdict.
+export const CIP_NOTE_FIELD_LABELS = [
+  'CASE',
+  'Bullet weight',
+  'Projectile',
+  'COAL',
+  'ST load',
+  'ST vel',
+  'Max load',
+  'Max vel',
+] as const;
+
+export type CipNoteFieldLabel = (typeof CIP_NOTE_FIELD_LABELS)[number];
+
+export type CipParsedNotes = {
+  // Free-text portion that preceded the structured suffix (kept verbatim).
+  freeText: string | null;
+  // Parsed key/value pairs in the order encountered.
+  fields: Partial<Record<CipNoteFieldLabel, string>>;
+};
+
+// Parse a CipReferenceRecord.notes string back into its structured parts.
+// The bulk-import writer encodes extras as `Label=value; Label=value`, joined
+// onto any pre-existing notes via ` | ` (see cipBulkCsv.ts). This parser
+// tolerates rows that were typed by hand and never went through bulk import —
+// in that case all content lands in `freeText` and `fields` is empty.
+export function parseCipNotes(
+  notes: string | null | undefined,
+): CipParsedNotes {
+  if (notes == null || notes.length === 0) {
+    return { freeText: null, fields: {} };
+  }
+  // Locate the structured suffix. The writer always uses ` | ` as the
+  // delimiter when a free-text prefix is present, so we split on the LAST
+  // occurrence to keep any pipes inside free text intact. If no pipe exists
+  // and the whole string looks structured, treat the whole string as the
+  // structured suffix.
+  let freeText: string | null = null;
+  let suffix = notes;
+  const pipeIdx = notes.lastIndexOf(' | ');
+  if (pipeIdx >= 0) {
+    freeText = notes.slice(0, pipeIdx).trim() || null;
+    suffix = notes.slice(pipeIdx + 3);
+  }
+  const labelLookup = new Map<string, CipNoteFieldLabel>(
+    CIP_NOTE_FIELD_LABELS.map((l) => [l.toLowerCase(), l]),
+  );
+  const fields: Partial<Record<CipNoteFieldLabel, string>> = {};
+  let foundAny = false;
+  for (const segment of suffix.split(';')) {
+    const eq = segment.indexOf('=');
+    if (eq < 0) continue;
+    const k = segment.slice(0, eq).trim().toLowerCase();
+    const v = segment.slice(eq + 1).trim();
+    if (v.length === 0) continue;
+    const canonical = labelLookup.get(k);
+    if (canonical) {
+      fields[canonical] = v;
+      foundAny = true;
+    }
+  }
+  if (!foundAny) {
+    // Nothing structured — treat the whole input as free text.
+    return { freeText: notes, fields: {} };
+  }
+  return { freeText, fields };
+}

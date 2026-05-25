@@ -454,6 +454,20 @@ export function BulkImportForm() {
             </a>{' '}
             and promote individually after comparing against the cited source.
           </p>
+          <p className="text-[12px] text-text-muted">
+            Preview how the rows look in the user-facing view:{' '}
+            <a
+              href="/cip-reference?includeNeedsReview=1"
+              className="text-accent hover:text-accent-hover"
+              data-testid="cip-bulk-public-preview-link"
+            >
+              /cip-reference?includeNeedsReview=1
+            </a>
+            . Non-admins do not see DRAFT rows there until they toggle the
+            same option, and the rows are clearly badged{' '}
+            <code className="text-accent">draft</code> with an unverified
+            warning.
+          </p>
         </div>
       )}
     </div>

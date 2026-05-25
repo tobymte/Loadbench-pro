@@ -20,6 +20,17 @@ export type CipListFilters = {
   powder?: string | null;
   manufacturer?: string | null;
   status?: CipVerificationStatus | null;
+  // Substring search on the structured notes fields produced by bulk import
+  // (Projectile=…, Bullet weight=…). Filtering happens via a case-insensitive
+  // `contains` on the `notes` column — accepted because the bulk-import writer
+  // always emits a predictable `Projectile=` / `Bullet weight=` prefix.
+  projectile?: string | null;
+  bulletWeight?: string | null;
+  // When true (admin-only), return rows whose verificationStatus is in
+  // {VERIFIED, DRAFT, PENDING_REVIEW} so user-facing pages can offer an
+  // optional "include needs review" toggle. RETIRED rows are always excluded
+  // from this expanded view.
+  includeNeedsReview?: boolean;
 };
 
 function whereForFilters(
@@ -29,7 +40,13 @@ function whereForFilters(
 ) {
   const where: Record<string, unknown> = { workspaceId };
   if (opts.verifiedOnly) {
-    where.verificationStatus = 'VERIFIED';
+    if (filters?.includeNeedsReview) {
+      where.verificationStatus = {
+        in: ['VERIFIED', 'DRAFT', 'PENDING_REVIEW'],
+      };
+    } else {
+      where.verificationStatus = 'VERIFIED';
+    }
   } else if (filters?.status) {
     where.verificationStatus = filters.status;
   }
@@ -50,6 +67,20 @@ function whereForFilters(
       contains: filters.manufacturer,
       mode: 'insensitive',
     };
+  }
+  // Free-form notes substring filters. The bulk-import parser writes these as
+  // `Projectile=…` / `Bullet weight=…` inside the `notes` field, so we filter
+  // on the raw column. Hand-typed rows that put the same text into `notes`
+  // also match — that's the documented behaviour.
+  const noteContains: string[] = [];
+  if (filters?.projectile) noteContains.push(filters.projectile);
+  if (filters?.bulletWeight) noteContains.push(filters.bulletWeight);
+  if (noteContains.length === 1) {
+    where.notes = { contains: noteContains[0], mode: 'insensitive' };
+  } else if (noteContains.length > 1) {
+    where.AND = noteContains.map((s) => ({
+      notes: { contains: s, mode: 'insensitive' },
+    }));
   }
   return where;
 }

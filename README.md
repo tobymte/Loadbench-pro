@@ -780,13 +780,30 @@ CIP and Shooters World (Explosia) metadata.
 
 **Routes:**
 
-- `/cip-reference` — user-facing browser. Lists verified rows only,
-  filterable by cartridge, powder, and manufacturer.
+- `/cip-reference` — user-facing browser. Visible to all signed-in
+  users. Defaults to **VERIFIED** rows only and badges every row with
+  its `verificationStatus`. Filterable by **cartridge, powder,
+  manufacturer, projectile, and bullet weight** — the projectile and
+  bullet-weight filters search the structured `notes` field produced
+  by the bulk-import header mapping (`Projectile=…`, `Bullet weight=…`).
+  The table also displays the imported CASE, COAL, ST load, ST vel,
+  Max load, Max vel labels from notes plus the published `Pmax`
+  pressure metadata when present. A `?includeNeedsReview=1` toggle
+  (also a checkbox on the filter form) lets the user opt in to seeing
+  DRAFT and PENDING_REVIEW rows; those rows are clearly badged and
+  carry a `Not yet verified against the cited source` warning. RETIRED
+  rows are never shown. Rows with no `sourceUrl` display a `source
+  needed` badge in the Source column.
 - `/cip-reference/compare` — comparison panel. Lays a verified CIP row
   next to a saved load and surfaces readiness notes (missing fields,
   unset safety acknowledgement). No pressure prediction is performed.
 - `/admin/shooters-world-cip` — admin entry workspace. Admin-only.
   Non-admins see a graceful unauthorized notice. Workspace-scoped.
+  Includes a "Where these rows are visible" panel that breaks rows
+  down by verification status (VERIFIED / DRAFT / PENDING_REVIEW /
+  RETIRED) and links directly to the public `/cip-reference` view
+  with and without the `includeNeedsReview` toggle so admins can see
+  exactly what non-admins see after an import.
 - `/api/admin/cip-reference/records` — POST to add a draft row.
   Forbidden output keys are rejected on the inbound boundary.
 - `/api/admin/cip-reference/records/[id]` — PATCH (or POST) to edit
