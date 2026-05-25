@@ -59,64 +59,54 @@ const TEMPLATES: Record<string, Template> = {
   },
   cases: {
     filename: 'model-validation-cases-template.csv',
+    // Cases header per operator spec. Columns map to:
+    //   CALIBER        → cartridge / caliber label (e.g. "6.5 Creedmoor")
+    //   CASEWEIGHT     → reference charge weight, grains (admin metadata only)
+    //   PROJECTILECOAL → projectile + cartridge overall length context
+    //   LOADST         → starting reference load label (e.g. "start")
+    //   VELMAX         → reference velocity (first column), fps
+    //   LOADMAX        → max reference load label (e.g. "max charge")
+    //   VELMAX         → observed velocity at max (second column), fps —
+    //                    duplicate header name is intentional per spec.
+    //                    The CSV is scaffolding for hand-transcription; the
+    //                    importer is JSON-based and does not parse this CSV
+    //                    by column name, so the duplicate is safe here.
+    //   PSI            → reference pressure (psi). ADMIN-ONLY validation
+    //                    metadata. Never rendered as load guidance and never
+    //                    compared against any prediction. Leave blank for
+    //                    velocity-only datasets.
     headers: [
-      'label',
-      'cartridgeName',
-      'bulletWeightGr',
-      'bulletDiameterIn',
-      'chargeGr',
-      'caseCapacityGrH2O',
-      'barrelLengthIn',
-      'twistRate',
-      'cartridgeOalIn',
-      'powderBurnRateLabel',
-      'tempF',
-      'referenceVelocityFps',
-      'referencePressurePsi',
-      'observedVelocityFps',
-      'pageLabel',
-      'notes',
+      'CALIBER',
+      'CASEWEIGHT',
+      'PROJECTILECOAL',
+      'LOADST',
+      'VELMAX',
+      'LOADMAX',
+      'VELMAX',
+      'PSI',
     ],
     exampleRows: [
+      // Synthetic, illustrative numbers ONLY. Not from any published manual.
+      // Do NOT treat these as load guidance.
       [
-        'EXAMPLE — replace before import',
         '6.5 Creedmoor',
-        140,
-        0.264,
-        // Synthetic numbers. Replace with the values from your cited dataset.
-        41.5,
-        53.5,
-        24,
-        '1:8',
-        2.825,
-        'medium (e.g. H4350-class)',
-        70,
+        'EXAMPLE — replace',
+        '140gr / 2.825 in COAL (illustrative)',
+        'start (illustrative)',
+        2650,
+        'max (illustrative)',
         2820,
-        // referencePressurePsi is OPTIONAL admin-only reference metadata. It
-        // is never rendered as load guidance and never compared against any
-        // prediction. Leave blank if your dataset is velocity-only.
         '',
-        2812,
-        'p. 142, row 4',
-        'Replace this row with real reference data. The example values are illustrative only — do not load.',
       ],
       [
-        'EXAMPLE — second row',
         '.308 Winchester',
-        168,
-        0.308,
-        42.0,
-        56.0,
-        20,
-        '1:10',
-        2.800,
-        'medium (e.g. Varget-class)',
-        70,
+        'EXAMPLE — replace',
+        '168gr / 2.800 in COAL (illustrative)',
+        'start (illustrative)',
+        2480,
+        'max (illustrative)',
         2630,
         '',
-        2641,
-        'p. 215, row 2',
-        'Replace before import.',
       ],
     ],
   },

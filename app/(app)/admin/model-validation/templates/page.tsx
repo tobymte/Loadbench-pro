@@ -50,40 +50,53 @@ const DATASET_FIELDS: Array<{ name: string; required: boolean; description: stri
   },
 ];
 
+// Cases header per operator spec. The CSV header VELMAX is intentionally
+// duplicated to match the spec (first column = reference velocity at the
+// starting load label, second column = reference velocity at the max load
+// label). The CSV is scaffolding for hand-transcription only; the importer
+// validates JSON payloads, not CSV column names, so the duplicate is safe.
 const CASE_FIELDS: Array<{ name: string; required: boolean; description: string }> = [
-  { name: 'label', required: true, description: 'Short case label (e.g. "Run #4, 70°F").' },
-  { name: 'cartridgeName', required: false, description: 'e.g. "6.5 Creedmoor".' },
-  { name: 'bulletWeightGr', required: false, description: 'Grains.' },
-  { name: 'bulletDiameterIn', required: false, description: 'Inches (e.g. 0.264).' },
-  { name: 'chargeGr', required: false, description: 'Charge weight in grains.' },
-  { name: 'caseCapacityGrH2O', required: false, description: 'Water grains.' },
-  { name: 'barrelLengthIn', required: false, description: 'Inches.' },
-  { name: 'twistRate', required: false, description: 'e.g. "1:8".' },
-  { name: 'cartridgeOalIn', required: false, description: 'Cartridge overall length, inches.' },
+  { name: 'CALIBER', required: true, description: 'Cartridge / caliber label (e.g. "6.5 Creedmoor").' },
   {
-    name: 'powderBurnRateLabel',
-    required: false,
-    description: 'Generic burn-rate descriptor — avoid brand-specific copyrighted names.',
-  },
-  { name: 'tempF', required: false, description: 'Test temperature in °F.' },
-  {
-    name: 'referenceVelocityFps',
-    required: false,
-    description: 'Reference velocity from the source. Displayed in the harness.',
-  },
-  {
-    name: 'referencePressurePsi',
+    name: 'CASEWEIGHT',
     required: false,
     description:
-      'Reference pressure from the source. Admin-only metadata — never rendered as load guidance and never compared against any prediction. Leave blank for velocity-only datasets.',
+      'Reference charge weight (grains) — admin metadata only. Not rendered as load guidance.',
   },
   {
-    name: 'observedVelocityFps',
+    name: 'PROJECTILECOAL',
     required: false,
-    description: 'Optional observed velocity (lab or chrono) used for the harness velocity delta.',
+    description:
+      'Projectile description and cartridge overall length context (e.g. "140gr / 2.825 in COAL").',
   },
-  { name: 'pageLabel', required: false, description: 'Source page / table / row reference.' },
-  { name: 'notes', required: false, description: 'Free-form notes.' },
+  {
+    name: 'LOADST',
+    required: false,
+    description: 'Starting reference load label (e.g. "start"). Free-form.',
+  },
+  {
+    name: 'VELMAX',
+    required: false,
+    description:
+      'Reference velocity at the starting load label (fps). First VELMAX column.',
+  },
+  {
+    name: 'LOADMAX',
+    required: false,
+    description: 'Max reference load label (e.g. "max charge"). Free-form.',
+  },
+  {
+    name: 'VELMAX',
+    required: false,
+    description:
+      'Reference velocity at the max load label (fps). Second VELMAX column — header name is intentionally duplicated per spec.',
+  },
+  {
+    name: 'PSI',
+    required: false,
+    description:
+      'Reference pressure (psi). Admin-only validation metadata — never rendered as load guidance, pressure prediction, or safety verdict, and never compared against any prediction. Leave blank for velocity-only datasets.',
+  },
 ];
 
 export default async function ValidationTemplatesPage() {
@@ -142,9 +155,16 @@ export default async function ValidationTemplatesPage() {
                 <code className="text-accent">licenseNote</code>.
               </li>
               <li>
-                <code className="text-accent">referencePressurePsi</code> is optional.
-                Leave it blank for velocity-only datasets — it is admin-only
-                governance metadata and is never rendered as guidance.
+                The <code className="text-accent">PSI</code> column in the
+                cases CSV is optional. Leave it blank for velocity-only
+                datasets — it is admin-only governance metadata and is never
+                rendered as guidance, prediction, or safety verdict.
+              </li>
+              <li>
+                The cases CSV header includes <code className="text-accent">VELMAX</code>{' '}
+                twice on purpose (reference velocity at the start label and
+                at the max label). The importer is JSON-based; the CSV is
+                only a hand-transcription scaffold.
               </li>
               <li>
                 Pressure prediction is permanently disabled. These templates
