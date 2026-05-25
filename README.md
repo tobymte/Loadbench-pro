@@ -796,6 +796,20 @@ CIP and Shooters World (Explosia) metadata.
 - `/api/admin/cip-reference/template` — GET a headers-only CSV
   template (with one synthetic example row labelled
   `PLACEHOLDER`). Admin-only download.
+- `/admin/shooters-world-cip/bulk-import` — admin-only page for
+  uploading or pasting a CSV of CIP reference rows. Validates each
+  row, shows a per-row preview with errors and warnings (missing
+  source URL, non-CIP host, missing cartridge/powder, invalid units
+  or numerics, intra-batch duplicates), and requires an explicit
+  admin acknowledgement before saving. All imported rows are saved
+  as `DRAFT` — never auto-verified. Forbidden output keys in the
+  CSV body cause the upload to be rejected.
+- `/api/admin/cip-reference/bulk-import` — POST endpoint backing the
+  bulk-import page. Accepts `{ csv, mode: 'preview' | 'commit',
+  acknowledgedDraftOnly }` (or equivalent form fields). Hard limits:
+  1 MB CSV body, 500 rows per import. Robust when `DATABASE_URL` is
+  missing or the Prisma client is stale: failures surface as
+  per-row failures rather than crashing the import.
 
 **Fields supported per row:**
 
@@ -828,9 +842,37 @@ CIP and Shooters World (Explosia) metadata.
    on `/cip-reference`. Rows without a `sourceUrl` cannot be verified.
 4. To prepare a CSV in advance, download the template at
    `/api/admin/cip-reference/template`, delete the synthetic example,
-   transcribe values, and add rows one per submission. Bulk CSV upload is
-   deliberately not exposed — every row passes through the per-row form
-   so it is reviewed individually. There is no scraping of cip-bob.org.
+   transcribe values, and either add rows one per submission OR upload
+   the completed CSV via
+   `/admin/shooters-world-cip/bulk-import`. The bulk-import page
+   validates each row, previews errors and warnings, and requires an
+   admin acknowledgement before saving — imported rows always land as
+   `DRAFT`, never `VERIFIED`. There is no scraping of cip-bob.org.
+
+**Bulk CSV import (`/admin/shooters-world-cip/bulk-import`):**
+
+- Admin-only. Non-admins see a graceful unauthorized notice.
+- Accepted headers match `CIP_TEMPLATE_HEADERS`: `cartridgeName`
+  (required), `cartridgeCaliberLabel`, `powderManufacturer`,
+  `powderFamily`, `powderName`, `sourceUrl`, `sourceLabel`,
+  `sourceRevision`, `sourceDate`, `pmaxValue`, `pmaxUnit`,
+  `referenceChamberVolume`, `referenceCombustionVolume`,
+  `volumeUnit`, `riflingF`, `riflingZ`, `riflingG`, `notes`.
+  Friendly uppercase / spaced aliases such as `CARTRIDGE`, `POWDER`,
+  `MFR`, `URL`, `PRESSURE UNIT` are also accepted.
+- Per-row warnings (non-blocking): missing `sourceUrl`, non-CIP
+  source host, missing powder identification, `pmaxValue` without
+  `pmaxUnit`, volume without `volumeUnit`, looks-like duplicate of
+  an earlier row in the batch.
+- Per-row errors (blocking): missing `cartridgeName`, invalid URL,
+  invalid date, invalid number, invalid unit enum, schema
+  rejection. Errors must be fixed before the commit button is
+  enabled.
+- The same forbidden-output-key filter used elsewhere
+  (`predictedPressurePsi`, `recommendedCharge`, etc.) is run
+  against the raw CSV body and against each parsed row. Any match
+  rejects the upload — bulk import never accepts these keys, not
+  even transiently.
 
 **Assisted CIP Source Import (`/admin/shooters-world-cip/import`):**
 

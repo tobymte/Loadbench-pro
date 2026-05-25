@@ -8,16 +8,11 @@ import { getWorkspaceContext } from '@/lib/auth/workspace';
 import {
   CIP_PRESSURE_PREDICTION_STATUS,
   CIP_SAFETY_BOUNDARY_MESSAGE,
+  CIP_TEMPLATE_HEADERS,
 } from '@/lib/validation/cipReference';
-import { CIP_KNOWN_HOSTS } from '@/lib/validation/cipSourceFetch';
-import { AssistedImportForm } from './AssistedImportForm';
+import { BulkImportForm } from './BulkImportForm';
 
 export const dynamic = 'force-dynamic';
-
-type SearchParams = {
-  ok?: string;
-  error?: string;
-};
 
 function describeError(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -32,14 +27,14 @@ function UnauthorizedView({ reason }: { reason: string | null }) {
   return (
     <>
       <Topbar
-        title="Admin · Assisted CIP Source Import"
+        title="Admin · CIP Bulk CSV Import"
         actions={<Badge tone="danger">Unauthorized</Badge>}
       />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-4">
-        <Card data-testid="cip-import-unauthorized">
+        <Card data-testid="cip-bulk-unauthorized">
           <CardHeader
             title="Admin access required"
-            description="Assisted CIP Source Import is admin-only. Pressure prediction remains disabled regardless of access state."
+            description="CIP bulk import is admin-only. Pressure prediction remains disabled regardless of access state."
           />
           <CardBody>
             <p className="text-[13px] text-text-muted">
@@ -61,7 +56,7 @@ function NotConfiguredView({ message }: { message: string }) {
   return (
     <>
       <Topbar
-        title="Admin · Assisted CIP Source Import"
+        title="Admin · CIP Bulk CSV Import"
         actions={<Badge tone="warning">Setup required</Badge>}
       />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-4">
@@ -87,12 +82,7 @@ function NotConfiguredView({ message }: { message: string }) {
   );
 }
 
-export default async function AssistedCipImportPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
-  const sp = await searchParams;
+export default async function CipBulkImportPage() {
   const admin = await getAdminContext();
   if (!admin.isAdmin) {
     return <UnauthorizedView reason={admin.reason} />;
@@ -107,7 +97,7 @@ export default async function AssistedCipImportPage({
   return (
     <>
       <Topbar
-        title="Admin · Assisted CIP Source Import"
+        title="Admin · CIP Bulk CSV Import"
         actions={<Badge tone="accent">Operator</Badge>}
       />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
@@ -118,7 +108,7 @@ export default async function AssistedCipImportPage({
               href: '/admin/shooters-world-cip',
               label: 'Admin · Shooters World / CIP',
             },
-            { label: 'Assisted Import' },
+            { label: 'Bulk CSV Import' },
           ]}
         />
 
@@ -132,21 +122,10 @@ export default async function AssistedCipImportPage({
           </div>
         )}
 
-        {sp.ok && (
-          <div className="rounded-md border border-success/40 bg-success-subtle px-4 py-3 text-[13px] text-text">
-            {sp.ok}
-          </div>
-        )}
-        {sp.error && (
-          <div className="rounded-md border border-danger/40 bg-danger-subtle px-4 py-3 text-[13px] text-text">
-            {sp.error}
-          </div>
-        )}
-
         <div className="rounded-md border border-warning/40 bg-warning-subtle px-4 py-3 text-[13px] text-text space-y-1">
           <p>
             <strong className="font-semibold">
-              Source metadata assistant, not a load engine.
+              Reference metadata batch entry, not a load engine.
             </strong>{' '}
             {CIP_SAFETY_BOUNDARY_MESSAGE}
           </p>
@@ -155,9 +134,9 @@ export default async function AssistedCipImportPage({
               pressurePredictionStatus: &quot;{CIP_PRESSURE_PREDICTION_STATUS}
               &quot;
             </code>
-            . This page can detect a source URL and create a DRAFT row. It
-            does <strong>not</strong> parse PDFs, extract pressure values,
-            recommend charges, or auto-verify any record. See the{' '}
+            . Bulk import creates DRAFT rows from a CSV you transcribed; it
+            never auto-verifies, never computes pressure, and never recommends
+            charges. See the{' '}
             <Link
               href="/safety"
               className="text-accent hover:text-accent-hover"
@@ -168,99 +147,92 @@ export default async function AssistedCipImportPage({
           </p>
         </div>
 
-        <Card data-testid="cip-import-card">
+        <Card data-testid="cip-bulk-form-card">
           <CardHeader
-            title="Paste a CIP source URL"
-            description="Detects basic source metadata (URL, host, content type, HTML title or PDF filename, last-modified) and creates a DRAFT CIP reference row seeded with the URL. Numeric reference fields (Pmax, volumes, rifling) are left blank for manual transcription."
-            actions={
-              <div className="flex items-center gap-3">
-                <Link
-                  href="/admin/shooters-world-cip/bulk-import"
-                  className="text-[12px] text-accent hover:text-accent-hover"
-                  data-testid="cip-bulk-import-from-assisted-link"
-                >
-                  Bulk CSV import →
-                </Link>
-                <Badge tone="accent">Step 1</Badge>
-              </div>
-            }
+            title="Upload or paste CSV"
+            description="Validates each row, previews it with errors and warnings, and — after explicit admin acknowledgement — saves all valid rows as DRAFT."
+            actions={<Badge tone="accent">Step 1 of 2</Badge>}
           />
           <CardBody>
-            <AssistedImportForm />
+            <BulkImportForm />
           </CardBody>
         </Card>
 
-        <Card data-testid="cip-import-workflow-card">
+        <Card data-testid="cip-bulk-headers-card">
           <CardHeader
-            title="Workflow"
-            description="How an assisted import becomes a verified row."
+            title="Accepted CSV headers"
+            description="Match the canonical names below (case-insensitive; spaces / underscores ignored). Friendly aliases like CARTRIDGE, POWDER, MFR, URL, PRESSURE UNIT are accepted."
           />
           <CardBody>
-            <ol className="text-[13px] text-text-muted list-decimal pl-5 space-y-1">
-              <li>
-                Paste the official CIP TDCC / source URL above. Allow-list:{' '}
-                {CIP_KNOWN_HOSTS.join(', ')}.
-              </li>
-              <li>
-                Click <strong>Fetch source metadata</strong> to preview what
-                the server sees (HTTP status, content type, title or PDF
-                filename, last-modified). No PDF body is parsed.
-              </li>
-              <li>
-                Fill in cartridge name and any powder fields you can read off
-                the source. Submit to create a DRAFT row.
-              </li>
-              <li>
-                Open the{' '}
-                <Link
-                  href="/admin/shooters-world-cip"
-                  className="text-accent hover:text-accent-hover"
-                >
-                  main admin page
-                </Link>
-                . Edit the draft to transcribe Pmax, reference chamber /
-                combustion volumes, and rifling F·Z·G from the cited source.
-              </li>
-              <li>
-                Tick the &quot;I have compared this row against the cited
-                source&quot; acknowledgement and click <strong>Verify</strong>
-                . Verification requires a source URL on the row.
-              </li>
-            </ol>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px]">
+                <thead className="text-left text-text-faint">
+                  <tr>
+                    <th className="py-1 pr-3 font-medium">Header</th>
+                    <th className="py-1 pr-3 font-medium">Required?</th>
+                    <th className="py-1 pr-3 font-medium">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="text-text">
+                  {CIP_TEMPLATE_HEADERS.map((h) => (
+                    <tr key={h} className="border-t border-border align-top">
+                      <td className="py-1.5 pr-3 font-mono">{h}</td>
+                      <td className="py-1.5 pr-3">
+                        {h === 'cartridgeName' ? (
+                          <span className="text-danger">required</span>
+                        ) : (
+                          <span className="text-text-muted">optional</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 pr-3 text-text-muted">
+                        {h === 'sourceUrl' &&
+                          'http(s) URL. Non-CIP hosts → warning. Required for VERIFIED later.'}
+                        {h === 'pmaxUnit' && 'One of BAR, MPA, PSI.'}
+                        {h === 'volumeUnit' && 'One of CM3, ML, GRAIN_H2O.'}
+                        {h === 'sourceDate' && 'YYYY-MM-DD (or any parseable date).'}
+                        {(h === 'pmaxValue' ||
+                          h === 'referenceChamberVolume' ||
+                          h === 'referenceCombustionVolume' ||
+                          h === 'riflingF' ||
+                          h === 'riflingZ' ||
+                          h === 'riflingG') &&
+                          'Numeric. Reference metadata only — never converted to a per-handload prediction.'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[12px] text-text-faint mt-3">
+              Get a starter file with these headers and one placeholder row at{' '}
+              <Link
+                href="/api/admin/cip-reference/template"
+                className="text-accent hover:text-accent-hover"
+              >
+                /api/admin/cip-reference/template
+              </Link>
+              . Delete the placeholder before importing.
+            </p>
           </CardBody>
         </Card>
 
-        <Card data-testid="cip-import-guardrails-card">
+        <Card data-testid="cip-bulk-guardrails-card">
           <CardHeader
             title="Guardrails"
             description="What this importer will refuse to do."
           />
           <CardBody>
             <ul className="text-[13px] text-text-muted list-disc pl-5 space-y-1">
-              <li>No PDF body parsing — Pmax values are never auto-filled.</li>
-              <li>
-                No pressure prediction, no charge recommendation, no
-                safe/unsafe verdict, no powder substitution advice.
-              </li>
+              <li>No pressure prediction, no charge recommendation, no safe / unsafe verdict, no powder substitution advice.</li>
               <li>
                 Forbidden output keys (e.g.{' '}
                 <code className="text-accent">predictedPressurePsi</code>,{' '}
-                <code className="text-accent">recommendedCharge</code>) are
-                rejected at both the preview and create endpoints.
+                <code className="text-accent">recommendedCharge</code>) in the
+                CSV body cause the entire upload to be rejected.
               </li>
-              <li>
-                Non-CIP hosts are warned and require an explicit
-                acknowledgement before a draft can be created from them.
-              </li>
-              <li>
-                Newly created rows are always{' '}
-                <Badge tone="accent">draft</Badge>. Verification is a
-                separate, deliberate step.
-              </li>
-              <li>
-                Verification refuses any row that has no source URL — even if
-                an admin clicks the button.
-              </li>
+              <li>Imported rows are always <Badge tone="accent">draft</Badge>. Verification is a separate, per-row admin action.</li>
+              <li>Row-level errors block the import; warnings (non-CIP host, missing source, missing units) are surfaced but do not block.</li>
+              <li>Hard limits: 1 MB CSV body, 500 rows per import.</li>
             </ul>
           </CardBody>
         </Card>

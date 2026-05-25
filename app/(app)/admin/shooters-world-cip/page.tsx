@@ -254,13 +254,22 @@ export default async function AdminCipReferencePage({
             title="Add reference row"
             description="Transcribe a single row from a published CIP / Shooters World source. New rows are saved as DRAFT — they are never auto-verified. Use the verify action below after comparing against the source."
             actions={
-              <Link
-                href="/admin/shooters-world-cip/import"
-                className="text-[12px] text-accent hover:text-accent-hover"
-                data-testid="cip-assisted-import-link"
-              >
-                Assisted import from URL →
-              </Link>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/admin/shooters-world-cip/import"
+                  className="text-[12px] text-accent hover:text-accent-hover"
+                  data-testid="cip-assisted-import-link"
+                >
+                  Assisted import from URL →
+                </Link>
+                <Link
+                  href="/admin/shooters-world-cip/bulk-import"
+                  className="text-[12px] text-accent hover:text-accent-hover"
+                  data-testid="cip-bulk-import-link"
+                >
+                  Bulk CSV import →
+                </Link>
+              </div>
             }
           />
           <CardBody>
@@ -672,8 +681,17 @@ export default async function AdminCipReferencePage({
 
         <Card data-testid="cip-csv-card">
           <CardHeader
-            title="CSV template & paste-import guidance"
+            title="CSV template & bulk import"
             description="Operators may transcribe rows in batches via CSV. Each imported row lands as DRAFT — no row is auto-verified. There is no scraping of cip-bob.org."
+            actions={
+              <Link
+                href="/admin/shooters-world-cip/bulk-import"
+                className="text-[12px] text-accent hover:text-accent-hover"
+                data-testid="cip-bulk-import-card-link"
+              >
+                Open bulk CSV import →
+              </Link>
+            }
           />
           <CardBody>
             <ul className="text-[13px] text-text-muted list-disc pl-5 space-y-1">
@@ -693,9 +711,18 @@ export default async function AdminCipReferencePage({
                 before importing your own.
               </li>
               <li>
-                Bulk CSV upload is intentionally not exposed yet — use the
-                form above per row so each entry is reviewed before it is
-                saved.
+                Use{' '}
+                <Link
+                  href="/admin/shooters-world-cip/bulk-import"
+                  className="text-accent hover:text-accent-hover"
+                >
+                  /admin/shooters-world-cip/bulk-import
+                </Link>{' '}
+                to upload or paste the completed CSV. The page validates each
+                row, previews errors and warnings, and requires an admin
+                acknowledgement before saving. Imported rows always land as
+                DRAFT — verify them individually after comparing against the
+                cited source.
               </li>
             </ul>
           </CardBody>
