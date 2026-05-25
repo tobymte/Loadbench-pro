@@ -700,6 +700,11 @@ export default async function DashboardPage() {
                   title: 'Notebook printables',
                   desc: 'Print-ready load and component cards.',
                 },
+                {
+                  href: '/beta/feedback',
+                  title: 'Beta feedback',
+                  desc: 'File a bug, feature request, or issue.',
+                },
               ].map((t) => (
                 <Link
                   key={t.href}

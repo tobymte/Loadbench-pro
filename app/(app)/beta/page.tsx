@@ -107,9 +107,35 @@ export default function BetaPage() {
     <>
       <Topbar
         title="Beta tester package"
-        actions={<Badge tone="accent">Beta</Badge>}
+        actions={
+          <>
+            <Badge tone="accent">Beta</Badge>
+            <Link href="/beta/feedback">
+              <Button size="sm">Submit feedback</Button>
+            </Link>
+          </>
+        }
       />
       <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
+        <Card>
+          <CardHeader
+            title="Found something? File a report."
+            description="The in-app feedback tracker accepts bug reports, usability feedback, feature requests, data and safety concerns, performance issues, mobile issues, and deployment/login problems."
+            actions={
+              <Link href="/beta/feedback">
+                <Button size="sm">Open feedback form →</Button>
+              </Link>
+            }
+          />
+          <CardBody>
+            <p className="text-[12px] text-text-muted leading-relaxed">
+              Each report is stored in the beta issue tracker and triaged by an
+              operator. You can see the status of your past reports below the
+              form once you have one open.
+            </p>
+          </CardBody>
+        </Card>
+
         <Card className="border-danger/40">
           <CardHeader
             title="Safety disclaimer — please read"
@@ -264,6 +290,7 @@ export default function BetaPage() {
             description="Quick jumps for testers and operators."
           />
           <CardBody className="flex flex-wrap gap-2">
+            <Link href="/beta/feedback"><Button>Submit feedback</Button></Link>
             <Link href="/onboarding"><Button variant="secondary">Onboarding</Button></Link>
             <Link href="/safety"><Button variant="secondary">Safety policy</Button></Link>
             <Link href="/data-tools"><Button variant="secondary">Export & backup</Button></Link>

@@ -767,6 +767,49 @@ In the Clerk dashboard:
 
 ---
 
+## Beta feedback & issue tracker
+
+LoadBench Pro ships an in-app feedback flow for beta testers and an admin
+issue tracker for operators.
+
+**As a tester:**
+
+- Open `/beta/feedback` (linked from the sidebar, the dashboard, and the
+  `/beta` package page).
+- Pick a type — bug, usability, feature request, data issue, safety
+  concern, performance, mobile, deployment/login.
+- Fill in title, severity, page/area, description, steps to reproduce,
+  expected vs actual, device/browser (auto-filled), and an optional
+  contact preference.
+- If you are signed in, your workspace is auto-associated and your
+  recent reports are listed below the form.
+- If you are not signed in (or the dev fallback is active), you can still
+  submit and an admin will see the row.
+
+**As an operator:**
+
+- Open `/admin/beta/issues` (linked from the Admin sidebar group and from
+  `/admin/beta`).
+- Filter by status, type, and severity.
+- Expand any row to read the full report and update status / admin
+  notes. Statuses cycle `NEW → TRIAGED → IN_PROGRESS → (BLOCKED) →
+  RESOLVED / WONT_FIX / ARCHIVED`.
+- Counts by status are surfaced at the top of the page.
+
+**Safety boundary:** a `SAFETY_CONCERN` type is accepted so users can
+flag perceived safety problems. The app stores these as user reports
+only. It does NOT turn them into pressure estimates, charge
+recommendations, safe/unsafe verdicts, powder substitutions, or any
+other load advice. Human triage only.
+
+**Migration:** the feature is shipped as the additive migration
+`20260525120000_beta_feedback_issue` — three enums and one table. To
+apply against an existing database run `npx prisma migrate deploy`. The
+pages and API routes degrade gracefully if the migration has not been
+applied yet (you'll see a "setup required" notice instead of a crash).
+
+---
+
 ## Known limitations of this scaffold
 
 - **Reference data is stubbed** in the UI (Cartridge / Component / Source dropdowns in `LoadForm` are empty until you wire workspace-scoped fetches — there are `TODO(forms)` markers in place).

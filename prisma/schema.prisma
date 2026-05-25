@@ -30,6 +30,7 @@ model User {
   importBatches   ImportBatch[]
   printJobs       PrintJob[]
   fileObjects     FileObject[]
+  betaFeedbackIssues BetaFeedbackIssue[] @relation("BetaFeedbackReporter")
 }
 
 model Workspace {
@@ -67,6 +68,7 @@ model Workspace {
   modelValidationDatasets   ModelValidationDataset[]
   modelValidationCases      ModelValidationCase[]
   modelValidationRuns       ModelValidationRun[]
+  betaFeedbackIssues        BetaFeedbackIssue[]
 
   @@index([ownerId])
 }
@@ -1053,4 +1055,87 @@ model ModelValidationRun {
 
   @@index([workspaceId, status])
   @@index([datasetId])
+}
+
+// =============================================================================
+// Beta feedback & issue tracker.
+// Captures user-submitted bug reports, usability feedback, feature requests,
+// data/safety/performance/mobile/deployment issues during the beta. Stored on
+// the workspace when one is available; both `workspaceId` and `reporterUserId`
+// are optional so unauthenticated submissions (when LOADBENCH_DISABLE_AUTH
+// fallback or a future anonymous channel is in use) are still captured.
+//
+// Safety boundary: a "safety concern" category is recorded as user-reported
+// data only. This model does NOT process the report into advice, pressure
+// estimates, charge recommendations, or safe/unsafe verdicts.
+// =============================================================================
+
+enum BetaFeedbackType {
+  BUG
+  USABILITY
+  FEATURE_REQUEST
+  DATA_ISSUE
+  SAFETY_CONCERN
+  PERFORMANCE
+  MOBILE
+  DEPLOYMENT
+}
+
+enum BetaFeedbackSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum BetaFeedbackStatus {
+  NEW
+  TRIAGED
+  IN_PROGRESS
+  BLOCKED
+  RESOLVED
+  WONT_FIX
+  ARCHIVED
+}
+
+model BetaFeedbackIssue {
+  id                String                @id @default(cuid())
+  // Workspace association — optional, so anonymous / pre-workspace submissions
+  // are not rejected. Where present, scoping uses this column.
+  workspaceId       String?
+  // Reporter linkage — optional. When the submission is unauthenticated, we
+  // still keep an email field for follow-up.
+  reporterUserId    String?
+  reporterEmail     String?
+  reporterDisplay   String?
+
+  title             String
+  type              BetaFeedbackType      @default(BUG)
+  severity          BetaFeedbackSeverity  @default(MEDIUM)
+  status            BetaFeedbackStatus    @default(NEW)
+  // Free-text label for the page/area the report concerns (e.g. "/loads",
+  // "mobile nav", "chrono import"). Not an enum because pages evolve.
+  pageArea          String?
+  description       String
+  stepsToReproduce  String?
+  expectedResult    String?
+  actualResult      String?
+  deviceBrowser     String?
+  // Contact preference: free text. ("email me back", "discord: handle", etc.)
+  contactPreference String?
+  // Optional admin/operator triage notes. Surfaces on /admin/beta/issues only.
+  adminNotes        String?
+  // Optional commit/build hash captured at submit time, if the user supplies it.
+  buildHash         String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  workspace         Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  reporter          User?                 @relation("BetaFeedbackReporter", fields: [reporterUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([status])
+  @@index([type])
+  @@index([severity])
+  @@index([createdAt])
 }

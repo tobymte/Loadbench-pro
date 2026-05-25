@@ -57,6 +57,7 @@ const NAV: Array<{
       { href: '/settings/deployment', label: 'Deployment guide', title: 'Production setup notes for operators' },
       { href: '/safety', label: 'Safety policy', hint: 'Required', title: 'Required reading before recording any load' },
       { href: '/beta', label: 'Beta package', title: 'Beta-tester onboarding, limitations, and bug-report template' },
+      { href: '/beta/feedback', label: 'Beta feedback', hint: 'Tracker', title: 'Submit beta bug reports, usability feedback, feature requests' },
     ],
   },
   {
@@ -68,6 +69,7 @@ const NAV: Array<{
       { href: '/admin/model-validation/reporting', label: 'Validation reporting', hint: 'Operator', title: 'Aggregate stats, run history, adapter status, guardrail telemetry' },
       { href: '/admin/deployment-check', label: 'Deployment check', hint: 'Operator', title: 'Env-var diagnostics and DB / ballistics-engine liveness probes' },
       { href: '/admin/beta', label: 'Beta release', hint: 'Operator', title: 'Beta release readiness, blockers, and tester links' },
+      { href: '/admin/beta/issues', label: 'Beta issues', hint: 'Tracker', title: 'Triage user-submitted beta feedback and issues' },
     ],
   },
 ];

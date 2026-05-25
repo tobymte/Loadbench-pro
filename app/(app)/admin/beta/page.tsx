@@ -100,10 +100,32 @@ export default async function AdminBetaPage() {
 
         <Card>
           <CardHeader
+            title="Beta issue tracker"
+            description="Triage user-submitted feedback and issues. Filter by status, type, and severity; expand any row to update status and admin notes."
+            actions={
+              <Link href="/admin/beta/issues">
+                <Button size="sm">Open issue tracker →</Button>
+              </Link>
+            }
+          />
+          <CardBody>
+            <p className="text-[12px] text-text-muted leading-relaxed">
+              The tester-facing form lives at{' '}
+              <code className="text-accent">/beta/feedback</code>. Counts by
+              status and full filters are on the tracker page.
+            </p>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
             title="Operator quick-links"
             description="Pages you need most during a beta cycle."
           />
           <CardBody className="flex flex-wrap gap-2">
+            <Link href="/admin/beta/issues">
+              <Button variant="secondary">Beta issue tracker</Button>
+            </Link>
             <Link href="/admin/deployment-check">
               <Button variant="secondary">Deployment check</Button>
             </Link>

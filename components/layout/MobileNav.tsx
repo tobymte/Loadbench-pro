@@ -62,6 +62,7 @@ const NAV: Group[] = [
       { href: '/settings/deployment', label: 'Deployment guide' },
       { href: '/safety', label: 'Safety policy' },
       { href: '/beta', label: 'Beta package' },
+      { href: '/beta/feedback', label: 'Beta feedback' },
     ],
   },
 ];
