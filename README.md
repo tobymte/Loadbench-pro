@@ -759,6 +759,101 @@ In the Clerk dashboard:
 
 ---
 
+## Shooters World / CIP Reference Center
+
+LoadBench Pro ships a dedicated, verified-reference workspace for published
+CIP and Shooters World (Explosia) metadata.
+
+**Safety boundary (load-bearing):**
+
+- This feature stores **reference metadata only**. It records the Pmax /
+  maximum-average piezo pressure values published by CIP / Shooters World
+  alongside the source URL and revision used to verify each row.
+- The app **never** converts these rows into a per-handload pressure
+  estimate, charge recommendation, increase/decrease advice, powder
+  substitution, or safe/unsafe verdict. Every CIP-related screen surfaces
+  `pressurePredictionStatus: "disabled"` and the safety reminder.
+- The registry-only `shooters-world-cip` adapter (in
+  `lib/ballistics/modelAdapter.ts`) returns the same disabled-default
+  response shape as the base adapter; it exists as a label so the
+  validation harness can record which workflow produced a citation.
+
+**Routes:**
+
+- `/cip-reference` — user-facing browser. Lists verified rows only,
+  filterable by cartridge, powder, and manufacturer.
+- `/cip-reference/compare` — comparison panel. Lays a verified CIP row
+  next to a saved load and surfaces readiness notes (missing fields,
+  unset safety acknowledgement). No pressure prediction is performed.
+- `/admin/shooters-world-cip` — admin entry workspace. Admin-only.
+  Non-admins see a graceful unauthorized notice. Workspace-scoped.
+- `/api/admin/cip-reference/records` — POST to add a draft row.
+  Forbidden output keys are rejected on the inbound boundary.
+- `/api/admin/cip-reference/verify` — POST to promote a row to
+  `VERIFIED`. Requires an explicit "I have compared this row against
+  the cited source" acknowledgement and a non-empty `sourceUrl`.
+- `/api/admin/cip-reference/retire` — POST to retire a row.
+- `/api/admin/cip-reference/template` — GET a headers-only CSV
+  template (with one synthetic example row labelled
+  `PLACEHOLDER`). Admin-only download.
+
+**Fields supported per row:**
+
+- Cartridge: `cartridgeName`, `cartridgeCaliberLabel`.
+- Powder: `powderManufacturer` (e.g. Shooters World / Explosia),
+  `powderFamily`, `powderName`.
+- Source citation: `sourceUrl` (cip-bob.org or equivalent),
+  `sourceLabel`, `sourceRevision`, `sourceDate`.
+- Published reference pressure metadata: `pmaxValue`, `pmaxUnit`
+  (`BAR`, `MPA`, or `PSI`).
+- Reference volumes: `referenceChamberVolume`,
+  `referenceCombustionVolume`, `volumeUnit` (`CM3`, `ML`, or
+  `GRAIN_H2O`).
+- CIP TDCC rifling geometry: `riflingF`, `riflingZ`, `riflingG`.
+- Workflow: `verificationStatus` (`DRAFT`, `PENDING_REVIEW`,
+  `VERIFIED`, `RETIRED`), `verifiedByEmail`, `verifiedAt`,
+  `createdByEmail`, `createdAt`, `updatedAt`, `notes`.
+
+**Data-entry process:**
+
+1. An admin opens `/admin/shooters-world-cip` and enters a row one at a
+   time using the form. The Pmax value and unit are transcribed from the
+   published CIP / Shooters World source.
+2. Rows are always created as `DRAFT`. There is no auto-verification on
+   create or import.
+3. The admin opens the cited source (CIP TDCC PDF, manufacturer page) in a
+   new tab, compares each value, and only then ticks the
+   "I have compared this row against the cited source" checkbox and
+   submits the verify action. The row moves to `VERIFIED` and is surfaced
+   on `/cip-reference`. Rows without a `sourceUrl` cannot be verified.
+4. To prepare a CSV in advance, download the template at
+   `/api/admin/cip-reference/template`, delete the synthetic example,
+   transcribe values, and add rows one per submission. Bulk CSV upload is
+   deliberately not exposed — every row passes through the per-row form
+   so it is reviewed individually. There is no scraping of cip-bob.org.
+
+**Validation harness integration:** verified CIP rows are intended as
+reference citations for dataset cases created in
+`/admin/model-validation`. The harness still uses its own
+`ModelValidationCase` schema; the CIP entry stores the published
+metadata an admin would copy into a dataset case (cartridge, powder
+context, reference Pmax). The harness produces no pressure prediction,
+in line with `lib/ballistics/modelAdapter.ts`.
+
+**Degradation:**
+
+- Missing `DATABASE_URL` or unreachable database: the user page shows an
+  "Unavailable" card; the admin page shows the same setup prompt as the
+  rest of the admin surfaces.
+- Unauthenticated users: `getWorkspaceContext()` throws and the user
+  page surfaces the same friendly notice.
+- Non-admins hitting `/admin/shooters-world-cip` get an `Unauthorized`
+  card with a link to `/cip-reference`.
+- Stale Prisma client: surfaces the "Setup required" notice with the
+  exact `prisma generate` / `prisma migrate deploy` commands.
+
+---
+
 ## What's intentionally _not_ here
 
 - **No load development engine.** No charge recommendations, no pressure modelling, no "predicted velocity". This is a deliberate product decision.

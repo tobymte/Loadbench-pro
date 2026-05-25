@@ -69,6 +69,7 @@ model Workspace {
   modelValidationCases      ModelValidationCase[]
   modelValidationRuns       ModelValidationRun[]
   betaFeedbackIssues        BetaFeedbackIssue[]
+  cipReferenceRecords       CipReferenceRecord[]
 
   @@index([ownerId])
 }
@@ -1138,4 +1139,93 @@ model BetaFeedbackIssue {
   @@index([type])
   @@index([severity])
   @@index([createdAt])
+}
+
+// =============================================================================
+// Shooters World / CIP Reference Center
+//
+// Verified reference-data center for published CIP and Shooters World (Explosia)
+// metadata. This model stores PUBLISHED reference metadata only — Pmax / MAP
+// piezo values transcribed from the official CIP / manufacturer publication,
+// reference chamber / combustion volume, rifling geometry (F, Z, G), and the
+// source URL / source date used to verify the row.
+//
+// Safety boundary:
+//   - This table is reference metadata. It does NOT predict per-handload
+//     chamber pressure, never recommends a charge, never advises on safe vs.
+//     unsafe loads, and never substitutes for the published source it cites.
+//   - User-facing views surface only rows with verificationStatus = VERIFIED.
+//   - Draft / unverified rows are admin-only.
+//   - Imports are NEVER auto-verified — an admin reviewer must promote rows.
+// =============================================================================
+
+enum CipReferenceVerificationStatus {
+  DRAFT
+  PENDING_REVIEW
+  VERIFIED
+  RETIRED
+}
+
+enum CipReferencePressureUnit {
+  BAR
+  MPA
+  PSI
+}
+
+enum CipReferenceVolumeUnit {
+  CM3
+  ML
+  GRAIN_H2O
+}
+
+model CipReferenceRecord {
+  id                       String                          @id @default(cuid())
+  workspaceId              String
+  // Cartridge / caliber the row describes (free text — matches existing
+  // Cartridge.name conventions; not FK-linked so admin reference data can be
+  // entered before a workspace Cartridge row exists).
+  cartridgeName            String
+  cartridgeCaliberLabel    String?
+  // Powder identification (Shooters World / Explosia family + product).
+  powderManufacturer       String?
+  powderFamily             String?
+  powderName               String?
+  // Source citation. URL is mandatory for VERIFIED rows; revision/date
+  // captured for audit. Source label (e.g. "CIP TDCC 6.5 Creedmoor 2023-09").
+  sourceUrl                String?
+  sourceLabel              String?
+  sourceRevision           String?
+  // Source publication / observation date. Stored as DateTime so it sorts
+  // and filters correctly. Optional because some CIP TDCC sheets omit it.
+  sourceDate               DateTime?
+  // Published Pmax / maximum average piezo pressure (reference metadata only).
+  // Stored alongside its unit; the app never converts this into a per-handload
+  // prediction.
+  pmaxValue                Float?
+  pmaxUnit                 CipReferencePressureUnit?
+  // Reference chamber / combustion volume, if published.
+  referenceChamberVolume   Float?
+  referenceCombustionVolume Float?
+  volumeUnit               CipReferenceVolumeUnit?
+  // Rifling geometry (CIP TDCC fields).
+  riflingF                 Float?
+  riflingZ                 Float?
+  riflingG                 Float?
+  // Free-text notes from the reviewer.
+  notes                    String?
+  // Verification workflow.
+  verificationStatus       CipReferenceVerificationStatus  @default(DRAFT)
+  verifiedByEmail          String?
+  verifiedAt               DateTime?
+  // Authorship.
+  createdByEmail           String?
+  createdAt                DateTime                        @default(now())
+  updatedAt                DateTime                        @updatedAt
+
+  workspace                Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, verificationStatus])
+  @@index([cartridgeName])
+  @@index([powderManufacturer, powderName])
 }

@@ -40,6 +40,7 @@ const NAV: Group[] = [
       { href: '/ballistics', label: 'Ballistics estimate' },
       { href: '/chrono-import', label: 'Chrono import' },
       { href: '/published-data-review', label: 'Published-data review' },
+      { href: '/cip-reference', label: 'SW/CIP Reference' },
       { href: '/data-quality', label: 'Data quality review' },
       { href: '/solver-inputs', label: 'Solver inputs' },
     ],

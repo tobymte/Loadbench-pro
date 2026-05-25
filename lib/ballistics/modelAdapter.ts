@@ -293,8 +293,60 @@ class DisabledDefaultAdapter implements BallisticsModelAdapter {
 // code change, a code review, and explicit governance sign-off. The current
 // registry intentionally exposes only the disabled-default adapter.
 
+// =============================================================================
+// Shooters World / CIP placeholder adapter — disabled, reference-data only.
+// =============================================================================
+//
+// This adapter is a *label* in the registry for the Shooters World / CIP
+// Reference Center. It exists so the model-validation harness and the CIP
+// reference center can record the name of the future adapter that *would*
+// consume verified CIP rows, while remaining strictly non-operational:
+// it returns the same disabled-default response as the base adapter and
+// emits no PSI / pressure / charge advice.
+
+const SHOOTERS_WORLD_CIP_BLOCKED_OUTPUTS_POLICY =
+  'No PSI / peak pressure / chamber pressure / charge recommendation / ' +
+  'safe/unsafe verdict / powder substitution. Reads only verified CIP / ' +
+  'Shooters World reference metadata for citation. Forbidden output keys ' +
+  'are rejected by the server before persistence.';
+
+const SHOOTERS_WORLD_CIP_DISABLED_REASON =
+  'Shooters World / CIP adapter. Pressure prediction is disabled. The ' +
+  'adapter is a registry label for the verified-CIP reference workflow ' +
+  '(see /shooters-world-cip and /admin/shooters-world-cip). It never ' +
+  'computes pressure or charge advice.';
+
+class ShootersWorldCipAdapter implements BallisticsModelAdapter {
+  readonly name = 'shooters-world-cip';
+  readonly version = '0.1.0';
+  readonly governanceStatus = 'disabled' as const;
+  readonly blockedOutputsPolicy =
+    SHOOTERS_WORLD_CIP_BLOCKED_OUTPUTS_POLICY;
+
+  evaluate(request: AdapterRequest): AdapterResponse {
+    // Reuse the disabled-default evaluation to keep behaviour identical and
+    // then overwrite the validation metadata so the audit trail records this
+    // adapter as the origin.
+    const base = new DisabledDefaultAdapter().evaluate(request);
+    const response: AdapterResponse = {
+      ...base,
+      pressurePredictionStatus: 'disabled',
+      pressurePredictionDisabledReason: SHOOTERS_WORLD_CIP_DISABLED_REASON,
+      validation: {
+        adapterName: this.name,
+        adapterVersion: this.version,
+        governanceStatus: this.governanceStatus,
+        blockedOutputsPolicy: this.blockedOutputsPolicy,
+        validatedAgainstDataset: false,
+      },
+    };
+    return stripForbiddenKeys(response);
+  }
+}
+
 const ADAPTERS: Record<string, BallisticsModelAdapter> = {
   'disabled-default': new DisabledDefaultAdapter(),
+  'shooters-world-cip': new ShootersWorldCipAdapter(),
 };
 
 export function listAdapters(): Array<{

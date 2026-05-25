@@ -35,6 +35,7 @@ const NAV: Array<{
       { href: '/ballistics', label: 'Ballistics estimate', title: 'Educational G1 trajectory from your inputs' },
       { href: '/chrono-import', label: 'Chrono import', title: 'Paste a chronograph CSV into a new range session' },
       { href: '/published-data-review', label: 'Published-data review', hint: 'User-verified', title: 'Stage and verify published rows before citing them on a load' },
+      { href: '/cip-reference', label: 'SW/CIP Reference', hint: 'Reference', title: 'Verified Shooters World / CIP reference metadata — pressure prediction disabled', exact: false },
       { href: '/data-quality', label: 'Data quality review', hint: 'Completeness', title: 'Surface missing fields, unverified rows, and incomplete references' },
       { href: '/solver-inputs', label: 'Solver inputs', hint: 'Data capture', title: 'Capture data inputs used by the pressure-engine workspace' },
     ],
@@ -65,6 +66,7 @@ const NAV: Array<{
     items: [
       { href: '/admin/entitlements', label: 'Entitlements', hint: 'Operator', title: 'Manage premium entitlements per workspace' },
       { href: '/admin/model-validation', label: 'Model validation', hint: 'Operator', title: 'Validation harness for the internal ballistics model adapter — pressure prediction disabled', exact: true },
+      { href: '/admin/shooters-world-cip', label: 'SW/CIP entry', hint: 'Operator', title: 'Admin entry for Shooters World / CIP reference rows — pressure prediction disabled' },
       { href: '/admin/model-validation/templates', label: 'Validation templates', hint: 'Operator', title: 'Downloadable CSV templates for safe validation dataset entry' },
       { href: '/admin/model-validation/reporting', label: 'Validation reporting', hint: 'Operator', title: 'Aggregate stats, run history, adapter status, guardrail telemetry' },
       { href: '/admin/deployment-check', label: 'Deployment check', hint: 'Operator', title: 'Env-var diagnostics and DB / ballistics-engine liveness probes' },
