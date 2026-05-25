@@ -8,7 +8,8 @@ import { getWorkspaceContext } from '@/lib/auth/workspace';
 import {
   CIP_PRESSURE_PREDICTION_STATUS,
   CIP_SAFETY_BOUNDARY_MESSAGE,
-  CIP_TEMPLATE_HEADERS,
+  CIP_TEMPLATE_CSV_HEADERS,
+  CIP_TEMPLATE_CSV_HEADER_MAPPING,
 } from '@/lib/validation/cipReference';
 import { BulkImportForm } from './BulkImportForm';
 
@@ -161,42 +162,51 @@ export default async function CipBulkImportPage() {
         <Card data-testid="cip-bulk-headers-card">
           <CardHeader
             title="Accepted CSV headers"
-            description="Match the canonical names below (case-insensitive; spaces / underscores ignored). Friendly aliases like CARTRIDGE, POWDER, MFR, URL, PRESSURE UNIT are accepted."
+            description={`Match the operator-facing header row below (case-insensitive; spaces / underscores ignored). The canonical row is: ${CIP_TEMPLATE_CSV_HEADERS.join(
+              ', ',
+            )}. Older templates using internal field names (cartridgeName, pmaxValue, …) and friendly aliases (URL, PRESSURE UNIT, MFR) are still accepted.`}
           />
           <CardBody>
+            <p className="text-[12px] text-text-muted mb-2">
+              Columns that don&apos;t map 1:1 onto a CipReferenceRecord field
+              (CASE, Bullet weight, PROJECTILE, COAL, ST LOAD, ST VEL, MAX
+              LOAD, MAX VEL) are preserved as a structured suffix on the row&apos;s{' '}
+              <code className="text-accent">notes</code> field — no schema
+              migration, no data dropped silently. <strong>MAX PSI</strong>{' '}
+              maps onto{' '}
+              <code className="text-accent">pmaxValue</code> with an implicit{' '}
+              <code className="text-accent">pmaxUnit=PSI</code>: this is
+              admin reference metadata only, not a pressure prediction.
+            </p>
             <div className="overflow-x-auto">
               <table className="w-full text-[12px]">
                 <thead className="text-left text-text-faint">
                   <tr>
                     <th className="py-1 pr-3 font-medium">Header</th>
                     <th className="py-1 pr-3 font-medium">Required?</th>
+                    <th className="py-1 pr-3 font-medium">Maps to</th>
                     <th className="py-1 pr-3 font-medium">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="text-text">
-                  {CIP_TEMPLATE_HEADERS.map((h) => (
-                    <tr key={h} className="border-t border-border align-top">
-                      <td className="py-1.5 pr-3 font-mono">{h}</td>
+                  {CIP_TEMPLATE_CSV_HEADER_MAPPING.map((row) => (
+                    <tr
+                      key={row.header}
+                      className="border-t border-border align-top"
+                    >
+                      <td className="py-1.5 pr-3 font-mono">{row.header}</td>
                       <td className="py-1.5 pr-3">
-                        {h === 'cartridgeName' ? (
+                        {row.required ? (
                           <span className="text-danger">required</span>
                         ) : (
                           <span className="text-text-muted">optional</span>
                         )}
                       </td>
+                      <td className="py-1.5 pr-3 font-mono text-text-muted">
+                        {row.mapsTo}
+                      </td>
                       <td className="py-1.5 pr-3 text-text-muted">
-                        {h === 'sourceUrl' &&
-                          'http(s) URL. Non-CIP hosts → warning. Required for VERIFIED later.'}
-                        {h === 'pmaxUnit' && 'One of BAR, MPA, PSI.'}
-                        {h === 'volumeUnit' && 'One of CM3, ML, GRAIN_H2O.'}
-                        {h === 'sourceDate' && 'YYYY-MM-DD (or any parseable date).'}
-                        {(h === 'pmaxValue' ||
-                          h === 'referenceChamberVolume' ||
-                          h === 'referenceCombustionVolume' ||
-                          h === 'riflingF' ||
-                          h === 'riflingZ' ||
-                          h === 'riflingG') &&
-                          'Numeric. Reference metadata only — never converted to a per-handload prediction.'}
+                        {row.notes}
                       </td>
                     </tr>
                   ))}
@@ -211,7 +221,9 @@ export default async function CipBulkImportPage() {
               >
                 /api/admin/cip-reference/template
               </Link>
-              . Delete the placeholder before importing.
+              . Delete the placeholder before importing. Imported rows always
+              land as <Badge tone="accent">draft</Badge> and require a
+              separate per-row admin verification.
             </p>
           </CardBody>
         </Card>

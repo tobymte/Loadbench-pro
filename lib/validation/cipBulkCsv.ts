@@ -70,8 +70,56 @@ export type CipBulkParseResult = {
 const CANONICAL_FIELDS = CIP_TEMPLATE_HEADERS;
 type CanonicalField = (typeof CANONICAL_FIELDS)[number];
 
+// Operator-facing CSV columns that don't map 1:1 onto a CipReferenceRecord
+// field. These are still admin-only reference metadata transcribed from the
+// published source — never charge guidance, never a pressure prediction. We
+// fold them into the `notes` field as a single structured suffix so no data
+// is dropped, but the schema shape stays stable.
+//
+//   CASE         — physical case / chamber label as printed on the source row
+//   Bullet weight — projectile mass label (e.g. "140 gr")
+//   PROJECTILE   — projectile description
+//   COAL         — published cartridge overall length (reference only)
+//   ST LOAD      — "starting load" label from the published table (reference only)
+//   ST VEL       — "starting velocity" label from the published table
+//   MAX LOAD     — "maximum load" label from the published table (reference only)
+//   MAX VEL      — "maximum velocity" label from the published table
+//
+// `MAX PSI` is handled separately: it maps to `pmaxValue` with an implicit
+// `pmaxUnit=PSI` when no other unit was specified.
+const EXTRA_NOTE_FIELDS = [
+  'extraCase',
+  'extraBulletWeight',
+  'extraProjectile',
+  'extraCoal',
+  'extraStLoad',
+  'extraStVel',
+  'extraMaxLoad',
+  'extraMaxVel',
+] as const;
+type ExtraNoteField = (typeof EXTRA_NOTE_FIELDS)[number];
+
+const EXTRA_NOTE_LABELS: Record<ExtraNoteField, string> = {
+  extraCase: 'CASE',
+  extraBulletWeight: 'Bullet weight',
+  extraProjectile: 'Projectile',
+  extraCoal: 'COAL',
+  extraStLoad: 'ST load',
+  extraStVel: 'ST vel',
+  extraMaxLoad: 'Max load',
+  extraMaxVel: 'Max vel',
+};
+
+// `maxPsi` is a parser-internal canonical key. We accept the operator header
+// `MAX PSI` here and feed the numeric value into `pmaxValue` (with an
+// implicit `pmaxUnit=PSI` if nothing else was specified).
+type ParserCanonicalField = CanonicalField | ExtraNoteField | 'maxPsi';
+
 // Friendly aliases. Keys are normalized (lowercase, alphanumeric only).
-const HEADER_ALIASES: Record<CanonicalField, string[]> = {
+// Operator-facing aliases (Shooters World / CIP printed-table column names)
+// are listed alongside the previous canonical / friendly aliases so older
+// templates continue to import.
+const HEADER_ALIASES: Record<ParserCanonicalField, string[]> = {
   cartridgeName: ['cartridge', 'cartridgename', 'cartridgelabel'],
   cartridgeCaliberLabel: ['caliber', 'caliberlabel', 'cartridgecaliber', 'cartridgecaliberlabel'],
   powderManufacturer: ['powdermanufacturer', 'manufacturer', 'powderbrand'],
@@ -81,6 +129,10 @@ const HEADER_ALIASES: Record<CanonicalField, string[]> = {
   sourceLabel: ['sourcelabel', 'sourcetitle', 'sourcename'],
   sourceRevision: ['sourcerevision', 'revision', 'rev'],
   sourceDate: ['sourcedate', 'date', 'publishdate', 'published'],
+  // Note: `maxpressure` stays here as a legacy alias for `pmaxValue` for
+  // back-compat with older templates. The new operator header `MAX PSI`
+  // is routed separately via the `maxPsi` virtual field so we can attach
+  // an implicit `pmaxUnit=PSI`.
   pmaxValue: ['pmaxvalue', 'pmax', 'map', 'maxpressure'],
   pmaxUnit: ['pmaxunit', 'pressureunit', 'unit'],
   referenceChamberVolume: ['referencechambervolume', 'chambervolume', 'vchamber', 'chamberv'],
@@ -95,20 +147,43 @@ const HEADER_ALIASES: Record<CanonicalField, string[]> = {
   riflingZ: ['riflingz', 'z'],
   riflingG: ['riflingg', 'g'],
   notes: ['notes', 'note', 'comment', 'comments'],
+  // New operator-facing reference columns. Folded into `notes` so no data
+  // is dropped — these are metadata, not load guidance.
+  extraCase: ['case', 'casetype', 'caselabel'],
+  extraBulletWeight: ['bulletweight', 'bulletwt', 'bullet'],
+  extraProjectile: ['projectile', 'proj'],
+  extraCoal: ['coal', 'oal', 'cartridgeoal'],
+  extraStLoad: ['stload', 'startload', 'startingload', 'startcharge'],
+  extraStVel: ['stvel', 'startvel', 'startingvel', 'startvelocity'],
+  extraMaxLoad: ['maxload', 'maximumload', 'maxcharge'],
+  extraMaxVel: ['maxvel', 'maxvelocity'],
+  // MAX PSI — published maximum-average pressure in PSI. Reference metadata
+  // only; never a per-handload prediction. Operator may also omit it.
+  maxPsi: ['maxpsi', 'pmaxpsi'],
 };
+
+const EXTRA_NOTE_SET = new Set<string>(EXTRA_NOTE_FIELDS);
+function isExtraNoteField(c: ParserCanonicalField): c is ExtraNoteField {
+  return EXTRA_NOTE_SET.has(c);
+}
 
 function normalizeKey(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-function canonFor(header: string): CanonicalField | null {
+function canonFor(header: string): ParserCanonicalField | null {
   const k = normalizeKey(header);
-  // Direct canonical match first.
+  // Direct canonical match first (the on-disk CipReferenceRecord field names).
   for (const canon of CANONICAL_FIELDS) {
     if (normalizeKey(canon) === k) return canon;
   }
-  for (const canon of CANONICAL_FIELDS) {
-    if (HEADER_ALIASES[canon].includes(k)) return canon;
+  // Then any alias — canonical or operator-facing.
+  const aliasEntries = Object.entries(HEADER_ALIASES) as [
+    ParserCanonicalField,
+    string[],
+  ][];
+  for (const [canon, aliases] of aliasEntries) {
+    if (aliases.includes(k)) return canon;
   }
   return null;
 }
@@ -308,13 +383,15 @@ export function parseCipBulkCsv(text: string): CipBulkParseResult {
     };
   }
 
-  const order: (CanonicalField | null)[] = firstCells.map((c) => canonFor(c));
+  const order: (ParserCanonicalField | null)[] = firstCells.map((c) =>
+    canonFor(c),
+  );
   if (!order.includes('cartridgeName')) {
     return {
       headerDetected: true,
       rows: [],
       fatalError:
-        'Header is missing the required "cartridgeName" column. Download the template at /api/admin/cip-reference/template.',
+        'Header is missing the required "Cartridge" / "cartridgeName" column. Download the template at /api/admin/cip-reference/template.',
     };
   }
 
@@ -348,9 +425,25 @@ export function parseCipBulkCsv(text: string): CipBulkParseResult {
       notes: null,
     };
 
+    // Operator-facing columns that don't map 1:1 onto a CipReferenceRecord
+    // field — we'll fold these into `notes` after the cell loop so no data
+    // is dropped silently.
+    const extras: Partial<Record<ExtraNoteField, string>> = {};
+    // Tracks whether the operator supplied a `MAX PSI` cell, so we can
+    // attach an implicit `pmaxUnit=PSI` only when no explicit unit was set
+    // by the row itself.
+    let maxPsiSeen = false;
+
     order.forEach((canon, i) => {
       if (canon === null) return;
       const raw = cells[i] ?? '';
+
+      if (isExtraNoteField(canon)) {
+        const s = raw.trim();
+        if (s !== '') extras[canon] = s.slice(0, 200);
+        return;
+      }
+
       switch (canon) {
         case 'cartridgeName':
         case 'cartridgeCaliberLabel':
@@ -400,8 +493,55 @@ export function parseCipBulkCsv(text: string): CipBulkParseResult {
           if (r.error) errors.push(r.error);
           break;
         }
+        case 'maxPsi': {
+          // `MAX PSI` from the published Shooters World / CIP table. Treated
+          // as reference metadata — not a per-handload prediction.
+          if (raw.trim() === '') {
+            maxPsiSeen = false;
+            break;
+          }
+          maxPsiSeen = true;
+          const r = parseOptionalNumber(raw, 'pmaxValue');
+          if (r.error) {
+            errors.push({ field: 'pmaxValue', message: r.error.message });
+            break;
+          }
+          if (r.value != null) {
+            if (values.pmaxValue != null && values.pmaxValue !== r.value) {
+              warnings.push({
+                field: 'pmaxValue',
+                message: `MAX PSI (${r.value}) conflicts with pmaxValue (${values.pmaxValue}); MAX PSI used.`,
+              });
+            }
+            values.pmaxValue = r.value;
+          }
+          break;
+        }
       }
     });
+
+    // If MAX PSI supplied a value and the row didn't set an explicit pmaxUnit,
+    // tag the unit as PSI. This is admin/reference metadata only; the engine
+    // never converts pmax into a per-handload pressure verdict.
+    if (maxPsiSeen && values.pmaxValue != null && !values.pmaxUnit) {
+      values.pmaxUnit = 'PSI';
+    }
+
+    // Fold extras into notes. Append in template order so reviewers see a
+    // predictable layout. Existing `notes` content is preserved.
+    const extraParts: string[] = [];
+    for (const key of EXTRA_NOTE_FIELDS) {
+      const v = extras[key];
+      if (v && v.length > 0) {
+        extraParts.push(`${EXTRA_NOTE_LABELS[key]}=${v}`);
+      }
+    }
+    if (extraParts.length > 0) {
+      const suffix = extraParts.join('; ');
+      const base = values.notes && values.notes.length > 0 ? values.notes : '';
+      const combined = base ? `${base} | ${suffix}` : suffix;
+      values.notes = combined.slice(0, 500);
+    }
 
     // Skip rows that are completely blank.
     const allBlank = cells.every((c) => c.trim() === '');

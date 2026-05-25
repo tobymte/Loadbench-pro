@@ -24,9 +24,9 @@ export type CipPressureUnit = (typeof CIP_PRESSURE_UNITS)[number];
 export const CIP_VOLUME_UNITS = ['CM3', 'ML', 'GRAIN_H2O'] as const;
 export type CipVolumeUnit = (typeof CIP_VOLUME_UNITS)[number];
 
-// Headers and example rows for the downloadable CSV template. Synthetic
-// example only — no live data scraped from cip-bob.org. Operators must
-// transcribe each row themselves and verify against the published source.
+// Internal canonical field names — the on-disk shape of CipReferenceRecord.
+// Still accepted as CSV headers (case-insensitive, spaces/underscores ignored)
+// for back-compat with previously distributed templates.
 export const CIP_TEMPLATE_HEADERS = [
   'cartridgeName',
   'cartridgeCaliberLabel',
@@ -48,34 +48,135 @@ export const CIP_TEMPLATE_HEADERS = [
   'notes',
 ] as const;
 
+// Operator-facing header row distributed in the downloadable CSV template.
+// These match the column labels published in Shooters World / CIP reference
+// tables. The bulk-import parser folds the columns onto CipReferenceRecord
+// fields (see lib/validation/cipBulkCsv.ts):
+//   Cartridge      -> cartridgeName
+//   POWDER         -> powderName
+//   MAX PSI        -> pmaxValue (with implicit pmaxUnit=PSI)
+//   CASE, Bullet weight, PROJECTILE, COAL, ST LOAD, ST VEL, MAX LOAD, MAX VEL
+//                  -> preserved as a structured suffix on `notes`
+// These columns are reference metadata only. The app never converts them
+// into a per-handload chamber-pressure estimate, a charge recommendation,
+// a safe/unsafe verdict, or a powder substitution.
+export const CIP_TEMPLATE_CSV_HEADERS = [
+  'Cartridge',
+  'CASE',
+  'Bullet weight',
+  'PROJECTILE',
+  'COAL',
+  'POWDER',
+  'ST LOAD',
+  'ST VEL',
+  'MAX LOAD',
+  'MAX VEL',
+  'MAX PSI',
+] as const;
+
+// Human-readable mapping from the operator-facing CSV column onto the
+// CipReferenceRecord field (or `notes` suffix) the parser will produce.
+// Surfaced in the admin page so reviewers can audit the mapping without
+// digging into the parser source.
+export const CIP_TEMPLATE_CSV_HEADER_MAPPING: ReadonlyArray<{
+  header: (typeof CIP_TEMPLATE_CSV_HEADERS)[number];
+  required: boolean;
+  mapsTo: string;
+  notes: string;
+}> = [
+  {
+    header: 'Cartridge',
+    required: true,
+    mapsTo: 'cartridgeName',
+    notes: 'Cartridge label exactly as printed on the source row.',
+  },
+  {
+    header: 'CASE',
+    required: false,
+    mapsTo: 'notes (CASE=…)',
+    notes: 'Preserved as a structured suffix on notes; no schema migration.',
+  },
+  {
+    header: 'Bullet weight',
+    required: false,
+    mapsTo: 'notes (Bullet weight=…)',
+    notes: 'Reference metadata; no load guidance derived.',
+  },
+  {
+    header: 'PROJECTILE',
+    required: false,
+    mapsTo: 'notes (Projectile=…)',
+    notes: 'Projectile description copied verbatim.',
+  },
+  {
+    header: 'COAL',
+    required: false,
+    mapsTo: 'notes (COAL=…)',
+    notes:
+      'Published cartridge overall length. Reference only — never used as a handload spec.',
+  },
+  {
+    header: 'POWDER',
+    required: false,
+    mapsTo: 'powderName',
+    notes: 'Powder label as printed (no substitutions are computed).',
+  },
+  {
+    header: 'ST LOAD',
+    required: false,
+    mapsTo: 'notes (ST load=…)',
+    notes:
+      'Starting-load label from the published table. Reference metadata — not a charge recommendation.',
+  },
+  {
+    header: 'ST VEL',
+    required: false,
+    mapsTo: 'notes (ST vel=…)',
+    notes: 'Starting-load velocity label. Reference metadata only.',
+  },
+  {
+    header: 'MAX LOAD',
+    required: false,
+    mapsTo: 'notes (Max load=…)',
+    notes:
+      'Maximum-load label from the published table. Reference metadata — not a charge recommendation.',
+  },
+  {
+    header: 'MAX VEL',
+    required: false,
+    mapsTo: 'notes (Max vel=…)',
+    notes: 'Maximum-load velocity label. Reference metadata only.',
+  },
+  {
+    header: 'MAX PSI',
+    required: false,
+    mapsTo: 'pmaxValue (pmaxUnit=PSI)',
+    notes:
+      'Published maximum-average pressure in PSI. Stored as admin reference metadata only; never a per-handload prediction. Leave blank if not published.',
+  },
+];
+
 export const CIP_TEMPLATE_EXAMPLE_ROWS: ReadonlyArray<
   ReadonlyArray<string>
 > = [
   [
-    '6.5 Creedmoor',
-    '6.5x48',
-    'Shooters World',
-    'Precision Rifle',
-    'PLACEHOLDER — transcribe from CIP TDCC',
-    'https://cip-bob.org/tdcc/<cartridge>.pdf',
-    'CIP TDCC <cartridge> (synthetic example)',
-    'rev 1',
-    '2024-01-15',
-    '4350',
-    'BAR',
-    '3.65',
-    '3.30',
-    'CM3',
-    '0.20',
-    '0.50',
-    '0.15',
-    'Synthetic example — replace with values transcribed from the CIP source.',
+    '6.5 Creedmoor', // Cartridge
+    '6.5x48', // CASE
+    '140 gr', // Bullet weight
+    'PLACEHOLDER — transcribe from source', // PROJECTILE
+    '2.825', // COAL (in)
+    'PLACEHOLDER — transcribe from source', // POWDER
+    '38.0', // ST LOAD (gr)
+    '2650', // ST VEL (fps)
+    '42.0', // MAX LOAD (gr)
+    '2820', // MAX VEL (fps)
+    '62000', // MAX PSI
   ],
 ];
 
 export function buildCipTemplateCsv(): string {
   const rows: ReadonlyArray<ReadonlyArray<string>> = [
-    CIP_TEMPLATE_HEADERS,
+    CIP_TEMPLATE_CSV_HEADERS,
     ...CIP_TEMPLATE_EXAMPLE_ROWS,
   ];
   return rows.map((r) => r.map(csvCell).join(',')).join('\n') + '\n';

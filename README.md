@@ -852,14 +852,30 @@ CIP and Shooters World (Explosia) metadata.
 **Bulk CSV import (`/admin/shooters-world-cip/bulk-import`):**
 
 - Admin-only. Non-admins see a graceful unauthorized notice.
-- Accepted headers match `CIP_TEMPLATE_HEADERS`: `cartridgeName`
-  (required), `cartridgeCaliberLabel`, `powderManufacturer`,
-  `powderFamily`, `powderName`, `sourceUrl`, `sourceLabel`,
-  `sourceRevision`, `sourceDate`, `pmaxValue`, `pmaxUnit`,
-  `referenceChamberVolume`, `referenceCombustionVolume`,
-  `volumeUnit`, `riflingF`, `riflingZ`, `riflingG`, `notes`.
-  Friendly uppercase / spaced aliases such as `CARTRIDGE`, `POWDER`,
-  `MFR`, `URL`, `PRESSURE UNIT` are also accepted.
+- The downloaded template now uses the operator-facing Shooters World /
+  CIP printed-table column row: `Cartridge`, `CASE`, `Bullet weight`,
+  `PROJECTILE`, `COAL`, `POWDER`, `ST LOAD`, `ST VEL`, `MAX LOAD`,
+  `MAX VEL`, `MAX PSI`. Headers are matched case-insensitively, ignoring
+  spaces and underscores. Mapping onto `CipReferenceRecord`:
+  - `Cartridge` → `cartridgeName` (required)
+  - `POWDER` → `powderName`
+  - `MAX PSI` → `pmaxValue` with implicit `pmaxUnit=PSI` (reference
+    metadata only; never a per-handload prediction; left empty when blank)
+  - `CASE`, `Bullet weight`, `PROJECTILE`, `COAL`, `ST LOAD`, `ST VEL`,
+    `MAX LOAD`, `MAX VEL` → preserved as a structured suffix on the
+    row's `notes` field (e.g. `CASE=6.5x48; Bullet weight=140 gr; …`).
+    No schema migration was required and no data is dropped silently.
+- Back-compat: previous canonical headers (`cartridgeName`,
+  `pmaxValue`, `pmaxUnit`, `referenceChamberVolume`,
+  `referenceCombustionVolume`, `volumeUnit`, `riflingF/Z/G`,
+  `sourceUrl/Label/Revision/Date`, `powderManufacturer/Family/Name`,
+  `cartridgeCaliberLabel`, `notes`) and friendly aliases such as
+  `CARTRIDGE`, `MFR`, `URL`, `PRESSURE UNIT` are still accepted so older
+  templates continue to import.
+- `ST LOAD`, `MAX LOAD`, `ST VEL`, `MAX VEL`, `COAL` are stored as
+  transcribed labels only. The app never recommends charges, predicts
+  pressure, advises increases/decreases, or issues safe/unsafe verdicts
+  based on them.
 - Per-row warnings (non-blocking): missing `sourceUrl`, non-CIP
   source host, missing powder identification, `pmaxValue` without
   `pmaxUnit`, volume without `volumeUnit`, looks-like duplicate of

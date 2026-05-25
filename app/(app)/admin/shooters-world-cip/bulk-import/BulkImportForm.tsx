@@ -8,7 +8,7 @@
 // per-row admin action on the main /admin/shooters-world-cip page.
 
 import { useState, useRef } from 'react';
-import { CIP_TEMPLATE_HEADERS } from '@/lib/validation/cipReference';
+import { CIP_TEMPLATE_CSV_HEADERS } from '@/lib/validation/cipReference';
 
 type ParsedRow = {
   rowNumber: number;
@@ -150,7 +150,7 @@ export function BulkImportForm() {
   }
 
   function copyTemplate() {
-    const headerLine = CIP_TEMPLATE_HEADERS.join(',');
+    const headerLine = CIP_TEMPLATE_CSV_HEADERS.join(',');
     void navigator.clipboard.writeText(headerLine + '\n');
   }
 
@@ -200,7 +200,7 @@ export function BulkImportForm() {
           }}
           rows={10}
           spellCheck={false}
-          placeholder={`${CIP_TEMPLATE_HEADERS.join(',')}\n6.5 Creedmoor,6.5x48,Shooters World,...`}
+          placeholder={`${CIP_TEMPLATE_CSV_HEADERS.join(',')}\n6.5 Creedmoor,6.5x48,Shooters World,...`}
           className="px-2 py-1 rounded border border-border bg-bg font-mono text-[12px] text-text"
           data-testid="cip-bulk-csv-textarea"
         />
