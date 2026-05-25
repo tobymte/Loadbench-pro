@@ -328,9 +328,10 @@ export default async function AdminCipReferencePage({
                 <label className="flex flex-col gap-1 text-[12px] text-text-muted">
                   <span>Source URL (cip-bob.org)</span>
                   <input
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     name="sourceUrl"
-                    placeholder="https://cip-bob.org/…"
+                    placeholder="https://www.cip-bobp.org/…"
                     className="h-8 px-2 rounded border border-border bg-bg text-[13px] text-text"
                   />
                 </label>

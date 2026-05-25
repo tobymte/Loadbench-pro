@@ -162,10 +162,11 @@ export function CipRowEditor({ record }: { record: CipRowEditorRecord }) {
                 )}
               </span>
               <input
-                type="url"
+                type="text"
+                inputMode="url"
                 name="sourceUrl"
                 defaultValue={stringInputValue(record.sourceUrl)}
-                placeholder="https://cip-bob.org/…"
+                placeholder="https://www.cip-bobp.org/…"
                 className={`h-8 px-2 rounded border bg-bg text-[13px] text-text ${
                   missing.includes('sourceUrl') ? 'border-danger' : 'border-border'
                 }`}
@@ -325,18 +326,50 @@ export function CipRowEditor({ record }: { record: CipRowEditorRecord }) {
           >
             <input type="hidden" name="recordId" value={id} />
             <p className="text-[12px] text-text-muted">
-              <strong>Verification is a separate step.</strong> Save the row
-              first if you edited any field above; then promote to VERIFIED
-              below. Verification requires a non-empty source URL and an
-              explicit acknowledgement.
+              <strong>Verification is a separate step.</strong> Verification
+              requires a non-empty source URL and an explicit acknowledgement.
+              You can either save the URL in the editor above first, or paste
+              it directly in this form to save-and-verify in one step.
             </p>
-            {missing.length > 0 && (
+            {/* Inline sourceUrl field: when present, the verify endpoint
+                persists it via the same PATCH helper before promoting the
+                row. This fixes the previous two-form trap where the Save
+                Draft button had to run first and the page had to reload
+                before the Verify button became usable. */}
+            <label className="flex flex-col gap-1 text-[12px] text-text-muted">
+              <span>
+                Source URL (required for VERIFIED)
+                <span className="text-text-faint ml-1">
+                  — paste here for save-and-verify, or leave blank if already saved above
+                </span>
+              </span>
+              <input
+                type="text"
+                inputMode="url"
+                name="sourceUrl"
+                defaultValue={stringInputValue(record.sourceUrl)}
+                placeholder="https://www.cip-bobp.org/…"
+                className="h-8 px-2 rounded border border-border bg-bg text-[13px] text-text"
+                data-testid={`cip-editor-verify-sourceUrl-${id}`}
+              />
+              <span className="text-[11px] text-text-faint">
+                Accepted: https://, http://, or bare like
+                <code className="text-accent ml-1">www.cip-bobp.org/...</code>{' '}
+                (https:// is auto-added). Non-CIP hosts are allowed but flagged
+                in the bulk-import preview.
+              </span>
+            </label>
+            {/* Only fields the operator cannot fix from this form block the
+                Verify button. sourceUrl is now repairable inline, so we
+                exclude it from the blocker list. */}
+            {missing.filter((m) => m !== 'sourceUrl').length > 0 && (
               <p
                 className="text-[12px] text-danger"
                 data-testid={`cip-editor-blocked-${id}`}
               >
                 Cannot verify yet — missing required field(s):{' '}
-                {missing.join(', ')}. Fill them in, save the row, then verify.
+                {missing.filter((m) => m !== 'sourceUrl').join(', ')}. Fill
+                them in above, save the draft, then verify.
               </p>
             )}
             <label className="flex items-start gap-2 text-[12px] text-text-muted">
@@ -353,11 +386,11 @@ export function CipRowEditor({ record }: { record: CipRowEditorRecord }) {
             <div className="flex justify-end">
               <button
                 type="submit"
-                disabled={missing.length > 0}
+                disabled={missing.filter((m) => m !== 'sourceUrl').length > 0}
                 className="h-7 px-3 rounded bg-success text-bg text-[12px] font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 data-testid={`cip-editor-verify-${id}`}
               >
-                Verify
+                {record.sourceUrl ? 'Verify' : 'Save URL & verify'}
               </button>
             </div>
           </form>

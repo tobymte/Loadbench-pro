@@ -196,24 +196,79 @@ const optionalString = z
   .optional()
   .transform((v) => (v && v.length > 0 ? v : undefined));
 
+// Try to coerce a free-form admin-typed string into a usable http(s) URL.
+// Returns the normalized URL string, `null` when the input is unusable, or
+// `undefined` when the input is blank ("leave alone" semantics).
+//
+// Practical inputs accepted:
+//   - https://bobp.cip-bobp.org/...
+//   - https://www.cip-bobp.org/...
+//   - http://www.cip-bobp.org/...
+//   - cip-bob.org/foo            (we auto-prepend https://)
+//   - www.cip-bobp.org           (we auto-prepend https://)
+//   - whitespace around any of the above
+//
+// We deliberately do NOT restrict to a CIP domain allow-list at this layer:
+// the bulk-import preview already warns on non-CIP hosts, and admins
+// sometimes need to cite manufacturer / archive mirrors. Draft save must
+// never reject a non-CIP URL.
+export function normalizeSourceUrl(
+  input: string | null | undefined,
+): string | null | undefined {
+  if (input == null) return undefined;
+  const trimmed = String(input).trim();
+  if (trimmed.length === 0) return undefined;
+  if (trimmed.length > 500) return null;
+  // Bare scheme-less input like "cip-bob.org/foo" or "www.cip-bobp.org" —
+  // assume https so the operator doesn't have to retype.
+  const withScheme = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+  try {
+    const u = new URL(withScheme);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    if (!u.hostname || u.hostname.length === 0) return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 const optionalUrl = z
   .string()
   .trim()
   .max(500)
   .optional()
-  .refine(
-    (v) => {
-      if (!v) return true;
-      try {
-        const u = new URL(v);
-        return u.protocol === 'http:' || u.protocol === 'https:';
-      } catch {
-        return false;
-      }
-    },
-    { message: 'sourceUrl must be a valid http(s) URL.' },
-  )
-  .transform((v) => (v && v.length > 0 ? v : undefined));
+  .transform((v, ctx) => {
+    if (v == null || v.length === 0) return undefined;
+    const normalized = normalizeSourceUrl(v);
+    if (normalized === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `sourceUrl must be a valid http(s) URL (received: ${
+          v.length > 80 ? v.slice(0, 80) + '…' : v
+        }). Try the full URL, e.g. https://www.cip-bobp.org/…`,
+      });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
+// `z.enum(...).optional()` rejects empty strings, which is fatal for HTML
+// forms that always send "" for unselected `<select>`s. Wrap the enum with a
+// preprocess that turns "" / null into undefined so it cleanly satisfies
+// `.optional()`. Whitespace-only is also treated as blank.
+function optionalEnum<T extends readonly [string, ...string[]]>(values: T) {
+  return z.preprocess((v) => {
+    if (v == null) return undefined;
+    if (typeof v === 'string') {
+      const t = v.trim();
+      if (t.length === 0) return undefined;
+      return t;
+    }
+    return v;
+  }, z.enum(values).optional());
+}
 
 const optionalFloat = z.preprocess(
   (v) => {
@@ -249,10 +304,10 @@ export const cipRecordCreateSchema = z.object({
   sourceRevision: optionalString,
   sourceDate: optionalDate,
   pmaxValue: optionalFloat,
-  pmaxUnit: z.enum(CIP_PRESSURE_UNITS).optional(),
+  pmaxUnit: optionalEnum(CIP_PRESSURE_UNITS),
   referenceChamberVolume: optionalFloat,
   referenceCombustionVolume: optionalFloat,
-  volumeUnit: z.enum(CIP_VOLUME_UNITS).optional(),
+  volumeUnit: optionalEnum(CIP_VOLUME_UNITS),
   riflingF: optionalFloat,
   riflingZ: optionalFloat,
   riflingG: optionalFloat,
@@ -276,10 +331,10 @@ export const cipRecordUpdateSchema = z.object({
   sourceRevision: optionalString,
   sourceDate: optionalDate,
   pmaxValue: optionalFloat,
-  pmaxUnit: z.enum(CIP_PRESSURE_UNITS).optional(),
+  pmaxUnit: optionalEnum(CIP_PRESSURE_UNITS),
   referenceChamberVolume: optionalFloat,
   referenceCombustionVolume: optionalFloat,
-  volumeUnit: z.enum(CIP_VOLUME_UNITS).optional(),
+  volumeUnit: optionalEnum(CIP_VOLUME_UNITS),
   riflingF: optionalFloat,
   riflingZ: optionalFloat,
   riflingG: optionalFloat,
@@ -314,10 +369,15 @@ export const CIP_RECORD_UPDATABLE_KEYS = [
   'notes',
 ] as const;
 
-// The verify action only takes the row id and an acknowledgement. We never
-// auto-verify on create.
+// The verify action takes the row id, an acknowledgement, and an optional
+// inline `sourceUrl` so an admin can save-and-verify in one step from the
+// inline editor without first persisting a separate draft save (the previous
+// flow required two round-trips and gave a misleading "no source URL" error
+// when the row hadn't yet been re-fetched). Other metadata still goes through
+// the PATCH endpoint. We never auto-verify on create.
 export const cipRecordVerifySchema = z.object({
   recordId: z.string().min(1),
+  sourceUrl: optionalUrl,
   acknowledgedVerifiedAgainstSource: z.literal(true, {
     errorMap: () => ({
       message:

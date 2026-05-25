@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { getAdminContext } from '@/lib/auth/admin';
 import { getWorkspaceContext } from '@/lib/auth/workspace';
 import { cipRecordVerifySchema } from '@/lib/validation/cipReference';
-import { verifyCipRecord } from '@/lib/validation/cipReferenceDb';
+import {
+  updateCipRecord,
+  verifyCipRecord,
+} from '@/lib/validation/cipReferenceDb';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -41,11 +44,40 @@ export async function POST(request: Request) {
   const parsed = cipRecordVerifySchema.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
+    const where = issue.path.join('.') || 'form';
     return redirectBack(
       request,
-      `Cannot verify: ${issue.message}`,
+      `Cannot verify (${where}): ${issue.message}`,
       true,
     );
+  }
+
+  // One-step "save and verify": if the operator typed an inline sourceUrl into
+  // the verify form, persist it via the PATCH helper before promoting the row.
+  // Saving never auto-verifies — verification still requires the explicit
+  // acknowledgement that the parser already enforced above.
+  if (parsed.data.sourceUrl) {
+    try {
+      const save = await updateCipRecord(
+        ctx.workspaceId,
+        parsed.data.recordId,
+        { sourceUrl: parsed.data.sourceUrl },
+      );
+      if (!save.ok) {
+        return redirectBack(
+          request,
+          'Reference row not found in this workspace.',
+          true,
+        );
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Save failed.';
+      return redirectBack(
+        request,
+        `Could not save sourceUrl before verifying: ${msg}`,
+        true,
+      );
+    }
   }
 
   const result = await verifyCipRecord(
@@ -57,7 +89,7 @@ export async function POST(request: Request) {
     const msg =
       result.reason === 'NOT_FOUND'
         ? 'Reference row not found in this workspace.'
-        : 'Cannot verify a row with no source URL. Add the source URL first.';
+        : 'Cannot verify a row with no source URL. Enter the source URL in the editor and save the draft (or use the inline source URL field on the verify form), then verify.';
     return redirectBack(request, msg, true);
   }
   return redirectBack(
