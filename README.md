@@ -789,9 +789,25 @@ CIP and Shooters World (Explosia) metadata.
   Non-admins see a graceful unauthorized notice. Workspace-scoped.
 - `/api/admin/cip-reference/records` — POST to add a draft row.
   Forbidden output keys are rejected on the inbound boundary.
+- `/api/admin/cip-reference/records/[id]` — PATCH (or POST) to edit
+  a single draft / pending row. Admin-only. Sanitizes input through
+  the same allow-list as the create endpoint (only the documented
+  metadata fields can be touched — `verificationStatus`,
+  `verifiedAt`, `verifiedByEmail`, `workspaceId`, etc. are
+  read-only). Rejects any inbound pressure-prediction keys via
+  `findForbiddenKeys`. Robust when the database is missing — the
+  helper returns a typed error rather than throwing. Used by the
+  inline "Edit & verify" panel on each row of
+  `/admin/shooters-world-cip` so admins can fill in missing fields
+  (typically `sourceUrl`, which bulk imports may omit) before
+  promoting a row.
 - `/api/admin/cip-reference/verify` — POST to promote a row to
   `VERIFIED`. Requires an explicit "I have compared this row against
   the cited source" acknowledgement and a non-empty `sourceUrl`.
+  Rows that are still missing required fields surface an inline
+  block in the editor; the Verify button is disabled until they are
+  saved. Verification is never automatic and never piggy-backed on
+  the edit endpoint.
 - `/api/admin/cip-reference/retire` — POST to retire a row.
 - `/api/admin/cip-reference/template` — GET a headers-only CSV
   template (with one synthetic example row labelled
@@ -840,6 +856,22 @@ CIP and Shooters World (Explosia) metadata.
    "I have compared this row against the cited source" checkbox and
    submits the verify action. The row moves to `VERIFIED` and is surfaced
    on `/cip-reference`. Rows without a `sourceUrl` cannot be verified.
+   If a draft row is missing data (e.g. a bulk-imported row that didn't
+   include `sourceUrl`, or a transcription where the operator skipped a
+   field), open the per-row "Edit & verify" panel directly under the row
+   on `/admin/shooters-world-cip`. The panel surfaces the missing
+   required fields up front, lets the admin edit any metadata field
+   (`sourceUrl`, `sourceLabel`, `sourceRevision`, `sourceDate`,
+   `cartridgeName`, `cartridgeCaliberLabel`, `powderManufacturer`,
+   `powderFamily`, `powderName`, `pmaxValue`, `pmaxUnit`,
+   `referenceChamberVolume`, `referenceCombustionVolume`, `volumeUnit`,
+   `riflingF`, `riflingZ`, `riflingG`, `notes`), and exposes a separate
+   "Save draft" button followed by the explicit verification checkbox.
+   Verification is never automatic — saving fields does not promote the
+   row, and the Verify button stays disabled until the required fields
+   are filled in and saved. Bulk-imported `notes` suffixes (`CASE=…`,
+   `COAL=…`, `MAX load=…`, `MAX vel=…`) are preserved so reviewers can
+   keep auditing them.
 4. To prepare a CSV in advance, download the template at
    `/api/admin/cip-reference/template`, delete the synthetic example,
    transcribe values, and either add rows one per submission OR upload

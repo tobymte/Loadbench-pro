@@ -261,6 +261,59 @@ export const cipRecordCreateSchema = z.object({
 
 export type CipRecordCreateInput = z.infer<typeof cipRecordCreateSchema>;
 
+// PATCH-style update schema for admins editing a draft row before
+// verification. Every field is optional — only the keys explicitly provided
+// are updated. cartridgeName, if provided, must still be non-empty (it is the
+// only required column on the row).
+export const cipRecordUpdateSchema = z.object({
+  cartridgeName: z.string().trim().min(1).max(200).optional(),
+  cartridgeCaliberLabel: optionalString,
+  powderManufacturer: optionalString,
+  powderFamily: optionalString,
+  powderName: optionalString,
+  sourceUrl: optionalUrl,
+  sourceLabel: optionalString,
+  sourceRevision: optionalString,
+  sourceDate: optionalDate,
+  pmaxValue: optionalFloat,
+  pmaxUnit: z.enum(CIP_PRESSURE_UNITS).optional(),
+  referenceChamberVolume: optionalFloat,
+  referenceCombustionVolume: optionalFloat,
+  volumeUnit: z.enum(CIP_VOLUME_UNITS).optional(),
+  riflingF: optionalFloat,
+  riflingZ: optionalFloat,
+  riflingG: optionalFloat,
+  notes: optionalString,
+});
+
+export type CipRecordUpdateInput = z.infer<typeof cipRecordUpdateSchema>;
+
+// Allow-list of keys an admin PATCH may legitimately touch on the
+// CipReferenceRecord row. Used in conjunction with findForbiddenKeys so we
+// reject both pressure-prediction keys (defence-in-depth against the safety
+// boundary) and any unrelated/internal fields (workspaceId, verifiedAt,
+// verifiedByEmail, verificationStatus, createdAt, …).
+export const CIP_RECORD_UPDATABLE_KEYS = [
+  'cartridgeName',
+  'cartridgeCaliberLabel',
+  'powderManufacturer',
+  'powderFamily',
+  'powderName',
+  'sourceUrl',
+  'sourceLabel',
+  'sourceRevision',
+  'sourceDate',
+  'pmaxValue',
+  'pmaxUnit',
+  'referenceChamberVolume',
+  'referenceCombustionVolume',
+  'volumeUnit',
+  'riflingF',
+  'riflingZ',
+  'riflingG',
+  'notes',
+] as const;
+
 // The verify action only takes the row id and an acknowledgement. We never
 // auto-verify on create.
 export const cipRecordVerifySchema = z.object({
@@ -272,6 +325,14 @@ export const cipRecordVerifySchema = z.object({
     }),
   }),
 });
+
+// Required fields a row must have populated before it can be promoted to
+// VERIFIED. Surfaced to the UI so the inline editor can flag missing fields
+// before the admin hits the verify button. Keep in sync with the validation
+// in verifyCipRecord() — currently only sourceUrl is hard-required by the DB
+// helper, but admins should be nudged to also fill cartridgeName and at
+// least one source-citation field.
+export const CIP_VERIFY_REQUIRED_FIELDS = ['sourceUrl', 'cartridgeName'] as const;
 
 // Pressure unit display helpers — pure formatting, no conversion to PSI for
 // safety-prediction purposes. We surface what was published.

@@ -1,3 +1,4 @@
+import React from 'react';
 import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
@@ -17,6 +18,7 @@ import {
   formatVolume,
   statusBadgeTone,
 } from '@/lib/validation/cipReference';
+import { CipRowEditor } from './CipRowEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -549,8 +551,8 @@ export default async function AdminCipReferencePage({
                   </thead>
                   <tbody className="text-text">
                     {rows.map((r) => (
+                      <React.Fragment key={r.id}>
                       <tr
-                        key={r.id}
                         className="border-t border-border align-top"
                         data-testid={`cip-admin-row-${r.id}`}
                       >
@@ -624,33 +626,9 @@ export default async function AdminCipReferencePage({
                           )}
                         </td>
                         <td className="py-1.5 pr-3 space-y-1">
-                          {r.verificationStatus !== 'VERIFIED' && (
-                            <form
-                              method="post"
-                              action="/api/admin/cip-reference/verify"
-                              className="flex flex-col gap-1"
-                            >
-                              <input
-                                type="hidden"
-                                name="recordId"
-                                value={r.id}
-                              />
-                              <label className="flex items-center gap-1 text-[11px] text-text-muted">
-                                <input
-                                  type="checkbox"
-                                  name="acknowledgedVerifiedAgainstSource"
-                                />
-                                <span>I have compared this row against the cited source.</span>
-                              </label>
-                              <button
-                                type="submit"
-                                className="h-6 px-2 rounded bg-success text-bg text-[11px] font-medium hover:opacity-90"
-                                data-testid={`cip-verify-${r.id}`}
-                              >
-                                Verify
-                              </button>
-                            </form>
-                          )}
+                          <span className="text-[11px] text-text-faint">
+                            Use the editor below the row to edit fields or verify.
+                          </span>
                           {r.verificationStatus !== 'RETIRED' && (
                             <form
                               method="post"
@@ -671,6 +649,15 @@ export default async function AdminCipReferencePage({
                           )}
                         </td>
                       </tr>
+                      <tr
+                        className="border-t-0 align-top"
+                        data-testid={`cip-admin-row-editor-${r.id}`}
+                      >
+                        <td colSpan={8} className="py-0 pr-3">
+                          <CipRowEditor record={r} />
+                        </td>
+                      </tr>
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>

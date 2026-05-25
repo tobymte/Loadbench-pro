@@ -7,6 +7,7 @@
 import { prisma } from '@/lib/db/prisma';
 import type {
   CipRecordCreateInput,
+  CipRecordUpdateInput,
   CipVerificationStatus,
 } from '@/lib/validation/cipReference';
 
@@ -128,6 +129,62 @@ export async function createCipRecord(
       createdByEmail,
     },
   });
+}
+
+// Admin-only edit of a draft / pending row. Only the keys explicitly present
+// in `patch` are touched — undefined values are left alone, null values clear
+// the column. Verification metadata (verificationStatus, verifiedByEmail,
+// verifiedAt) is intentionally NOT updatable through this helper; promote
+// rows through verifyCipRecord / retireCipRecord instead.
+export async function updateCipRecord(
+  workspaceId: string,
+  recordId: string,
+  patch: CipRecordUpdateInput,
+) {
+  const existing = await prisma.cipReferenceRecord.findFirst({
+    where: { id: recordId, workspaceId },
+  });
+  if (!existing) return { ok: false as const, reason: 'NOT_FOUND' as const };
+
+  const data: Record<string, unknown> = {};
+  // We translate `undefined` (omitted key) into "leave alone" and explicit
+  // undefined-after-zod into the same. The schema's optionalString /
+  // optionalFloat helpers preserve undefined for blank inputs, so editing a
+  // single field never silently wipes the rest of the row.
+  const assignIfPresent = <K extends keyof CipRecordUpdateInput>(
+    key: K,
+    value: CipRecordUpdateInput[K],
+  ) => {
+    if (value !== undefined) data[key as string] = value;
+  };
+  assignIfPresent('cartridgeName', patch.cartridgeName);
+  assignIfPresent('cartridgeCaliberLabel', patch.cartridgeCaliberLabel);
+  assignIfPresent('powderManufacturer', patch.powderManufacturer);
+  assignIfPresent('powderFamily', patch.powderFamily);
+  assignIfPresent('powderName', patch.powderName);
+  assignIfPresent('sourceUrl', patch.sourceUrl);
+  assignIfPresent('sourceLabel', patch.sourceLabel);
+  assignIfPresent('sourceRevision', patch.sourceRevision);
+  assignIfPresent('sourceDate', patch.sourceDate);
+  assignIfPresent('pmaxValue', patch.pmaxValue);
+  assignIfPresent('pmaxUnit', patch.pmaxUnit);
+  assignIfPresent('referenceChamberVolume', patch.referenceChamberVolume);
+  assignIfPresent('referenceCombustionVolume', patch.referenceCombustionVolume);
+  assignIfPresent('volumeUnit', patch.volumeUnit);
+  assignIfPresent('riflingF', patch.riflingF);
+  assignIfPresent('riflingZ', patch.riflingZ);
+  assignIfPresent('riflingG', patch.riflingG);
+  assignIfPresent('notes', patch.notes);
+
+  if (Object.keys(data).length === 0) {
+    return { ok: true as const, record: existing, changed: false };
+  }
+
+  const updated = await prisma.cipReferenceRecord.update({
+    where: { id: recordId },
+    data,
+  });
+  return { ok: true as const, record: updated, changed: true };
 }
 
 export async function verifyCipRecord(
