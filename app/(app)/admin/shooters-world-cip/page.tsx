@@ -253,7 +253,15 @@ export default async function AdminCipReferencePage({
           <CardHeader
             title="Add reference row"
             description="Transcribe a single row from a published CIP / Shooters World source. New rows are saved as DRAFT — they are never auto-verified. Use the verify action below after comparing against the source."
-            actions={<Badge tone="accent">Admin</Badge>}
+            actions={
+              <Link
+                href="/admin/shooters-world-cip/import"
+                className="text-[12px] text-accent hover:text-accent-hover"
+                data-testid="cip-assisted-import-link"
+              >
+                Assisted import from URL →
+              </Link>
+            }
           />
           <CardBody>
             <form

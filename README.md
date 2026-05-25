@@ -832,6 +832,37 @@ CIP and Shooters World (Explosia) metadata.
    deliberately not exposed — every row passes through the per-row form
    so it is reviewed individually. There is no scraping of cip-bob.org.
 
+**Assisted CIP Source Import (`/admin/shooters-world-cip/import`):**
+
+An optional admin-only workflow that helps an operator open a draft row
+from an official CIP URL without retyping the source citation. It is
+deliberately narrow:
+
+- The admin pastes a CIP TDCC / source URL (allow-list:
+  `cip-bobp.org`, `bobp.cip-bobp.org`, `cip-bob.org`, plus `www.` and
+  obvious subdomain variants). Non-CIP hosts are warned and require an
+  explicit acknowledgement before a draft is created.
+- A server-side fetch (`POST /api/admin/cip-reference/source-preview`)
+  collects basic source metadata only: HTTP status, content type,
+  content length, last-modified, an HTML `<title>` if and only if the
+  body is HTML and small enough to sniff, or a PDF filename derived
+  from the URL / `Content-Disposition`. Fetch is timeout-bounded and
+  capped at 64 KiB of body for title extraction.
+- The importer **does not** parse PDF bodies, **does not** extract Pmax /
+  volume / rifling values, **does not** predict chamber pressure, **does
+  not** recommend or adjust charges, and **does not** auto-verify. The
+  numeric reference fields are left blank on create — the admin
+  transcribes them on the main admin page after the draft is saved.
+- `POST /api/admin/cip-reference/source-import` creates a `DRAFT`
+  `CipReferenceRecord` seeded with the URL, an auto-derived
+  `sourceLabel` (HTML title or PDF filename), and an auto-derived
+  `sourceDate` (parsed from `Last-Modified` when present). Forbidden
+  output keys are rejected at this boundary as well. Verification still
+  goes through the existing acknowledgement-gated verify endpoint.
+- If the server cannot reach the URL the importer still works: the
+  fetch is skippable (checkbox on the form) and the draft is created
+  from whatever the admin pasted.
+
 **Validation harness integration:** verified CIP rows are intended as
 reference citations for dataset cases created in
 `/admin/model-validation`. The harness still uses its own
