@@ -246,6 +246,104 @@ export async function verifyCipRecord(
   return { ok: true as const, record: updated };
 }
 
+// Bulk-verify result shape — surfaced to the API and UI so admins can see
+// exactly which rows were promoted and why others were skipped. Row-level
+// errors are returned instead of aborting the whole batch so a single
+// malformed selection does not block the rest.
+export type CipBulkVerifySkipReason =
+  | 'NOT_FOUND'
+  | 'MISSING_SOURCE_URL'
+  | 'MISSING_CARTRIDGE_NAME'
+  | 'RETIRED'
+  | 'ALREADY_VERIFIED';
+
+export type CipBulkVerifyOutcome = {
+  approved: Array<{ id: string; cartridgeName: string }>;
+  skipped: Array<{
+    id: string;
+    cartridgeName: string | null;
+    reason: CipBulkVerifySkipReason;
+  }>;
+};
+
+// Promote a set of DRAFT / PENDING_REVIEW rows to VERIFIED in one transaction
+// per row. RETIRED rows are never bulk-approved (the safest default per the
+// safety boundary — restoring a retired row must go through a separate flow).
+// Already-VERIFIED rows are reported as skipped (idempotent no-op) so an
+// accidental re-submission does not pretend to have approved anything.
+//
+// SAFETY: this helper only flips `verificationStatus`, `verifiedByEmail`, and
+// `verifiedAt`. It never touches Pmax, charge, or any other metadata, and it
+// never produces a per-handload pressure prediction or load recommendation.
+export async function bulkVerifyCipRecords(
+  workspaceId: string,
+  recordIds: readonly string[],
+  verifiedByEmail: string | null,
+): Promise<CipBulkVerifyOutcome> {
+  const uniqueIds = Array.from(new Set(recordIds.filter((s) => s.length > 0)));
+  const outcome: CipBulkVerifyOutcome = { approved: [], skipped: [] };
+  if (uniqueIds.length === 0) return outcome;
+
+  const existing = await prisma.cipReferenceRecord.findMany({
+    where: { id: { in: uniqueIds }, workspaceId },
+  });
+  const byId = new Map(existing.map((r) => [r.id, r] as const));
+
+  for (const id of uniqueIds) {
+    const r = byId.get(id);
+    if (!r) {
+      outcome.skipped.push({ id, cartridgeName: null, reason: 'NOT_FOUND' });
+      continue;
+    }
+    if (r.verificationStatus === 'RETIRED') {
+      outcome.skipped.push({
+        id,
+        cartridgeName: r.cartridgeName,
+        reason: 'RETIRED',
+      });
+      continue;
+    }
+    if (r.verificationStatus === 'VERIFIED') {
+      outcome.skipped.push({
+        id,
+        cartridgeName: r.cartridgeName,
+        reason: 'ALREADY_VERIFIED',
+      });
+      continue;
+    }
+    if (!r.cartridgeName || r.cartridgeName.trim().length === 0) {
+      outcome.skipped.push({
+        id,
+        cartridgeName: r.cartridgeName,
+        reason: 'MISSING_CARTRIDGE_NAME',
+      });
+      continue;
+    }
+    if (!r.sourceUrl) {
+      outcome.skipped.push({
+        id,
+        cartridgeName: r.cartridgeName,
+        reason: 'MISSING_SOURCE_URL',
+      });
+      continue;
+    }
+    const updated = await prisma.cipReferenceRecord.update({
+      where: { id: r.id },
+      data: {
+        verificationStatus: 'VERIFIED',
+        verifiedByEmail,
+        verifiedAt: new Date(),
+      },
+    });
+    outcome.approved.push({
+      id: updated.id,
+      cartridgeName: updated.cartridgeName,
+    });
+  }
+
+  return outcome;
+}
+
 export async function retireCipRecord(
   workspaceId: string,
   recordId: string,

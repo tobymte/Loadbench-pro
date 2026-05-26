@@ -386,6 +386,28 @@ export const cipRecordVerifySchema = z.object({
   }),
 });
 
+// Bulk-verify input. Admins select N rows on /admin/shooters-world-cip and
+// submit one form to promote them all. The acknowledgement checkbox is
+// REQUIRED for the same safety reason as the single-row verify schema: the
+// admin must explicitly confirm they have compared the selected rows against
+// the published CIP / Shooters World public source before flipping them to
+// VERIFIED. Row-level filtering (RETIRED excluded, missing sourceUrl skipped,
+// etc.) happens in the DB helper — the schema only validates the form shape.
+export const cipRecordBulkVerifySchema = z.object({
+  recordIds: z
+    .array(z.string().trim().min(1).max(200))
+    .min(1, { message: 'Select at least one row to verify.' })
+    .max(500, { message: 'Bulk verify is capped at 500 rows per submission.' }),
+  acknowledgedVerifiedAgainstSource: z.literal(true, {
+    errorMap: () => ({
+      message:
+        'You must confirm you have compared the selected rows against the published CIP / Shooters World public source before bulk-promoting them to VERIFIED.',
+    }),
+  }),
+});
+
+export type CipRecordBulkVerifyInput = z.infer<typeof cipRecordBulkVerifySchema>;
+
 // Required fields a row must have populated before it can be promoted to
 // VERIFIED. Surfaced to the UI so the inline editor can flag missing fields
 // before the admin hits the verify button. Keep in sync with the validation

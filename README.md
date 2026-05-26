@@ -860,6 +860,21 @@ CIP and Shooters World (Explosia) metadata.
   saved. Verification is never automatic and never piggy-backed on
   the edit endpoint.
 - `/api/admin/cip-reference/retire` — POST to retire a row.
+- `/api/admin/cip-reference/bulk-verify` — POST endpoint that promotes a
+  list of selected `DRAFT` / `PENDING_REVIEW` rows to `VERIFIED` in one
+  submission. Admin-only and workspace-scoped. Requires an explicit
+  acknowledgement checkbox stating the admin has compared the selected
+  rows against the published CIP / Shooters World public source. `RETIRED`
+  rows are never bulk-approved (restore via the existing single-row
+  flow first). Rows missing a `sourceUrl` or `cartridgeName` are skipped
+  with per-row reasons instead of failing the whole batch. The endpoint
+  rejects any inbound pressure-prediction or load-recommendation keys
+  via the same `findForbiddenKeys` guardrail used elsewhere — bulk verify
+  only flips a verification status flag on reference metadata. The
+  matching UI control sits on the admin page above the rows table:
+  checkboxes per eligible row, a "Select all visible eligible" master
+  checkbox, a live "Selected: N of M" counter, and a result summary
+  flash message showing approved count and skipped reasons.
 - `/api/admin/cip-reference/template` — GET a headers-only CSV
   template (with one synthetic example row labelled
   `PLACEHOLDER`). Admin-only download.

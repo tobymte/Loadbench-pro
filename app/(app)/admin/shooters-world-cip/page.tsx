@@ -19,6 +19,7 @@ import {
   statusBadgeTone,
 } from '@/lib/validation/cipReference';
 import { CipRowEditor } from './CipRowEditor';
+import { CipBulkVerifyControls } from './CipBulkVerifyControls';
 
 export const dynamic = 'force-dynamic';
 
@@ -143,6 +144,24 @@ export default async function AdminCipReferencePage({
 
   const adapters = listAdapters();
   const swAdapter = adapters.find((a) => a.name === 'shooters-world-cip');
+
+  // Rows that are eligible for bulk verify in this listing. We exclude
+  // RETIRED outright (safest default — restoring requires the existing
+  // single-row flow) and already-VERIFIED rows (idempotent no-op). We do NOT
+  // exclude rows that are missing sourceUrl from the checkbox column — the
+  // admin can still tick them and the API will skip them with a row-level
+  // reason. Surfacing the "missing sourceUrl" badge in the row lets the
+  // admin decide whether to fix-then-bulk-verify or just exclude them.
+  const bulkEligibleRows = rows.filter(
+    (r) =>
+      r.verificationStatus === 'DRAFT' ||
+      r.verificationStatus === 'PENDING_REVIEW',
+  );
+  const bulkEligibleCount = bulkEligibleRows.length;
+  const bulkApprovableCount = bulkEligibleRows.filter(
+    (r) => r.sourceUrl != null && r.sourceUrl.length > 0,
+  ).length;
+  const bulkBlockedCount = bulkEligibleCount - bulkApprovableCount;
 
   // Visibility summary — surfaced so admins importing rows immediately see
   // why their new DRAFT rows are not visible to non-admins yet. Computed
@@ -633,10 +652,89 @@ export default async function AdminCipReferencePage({
                 No reference rows yet. Use the form above to add one.
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <div
+                className="overflow-x-auto space-y-3"
+                data-testid="cip-bulk-verify-region"
+              >
+                {/* Bulk verify control bar. The actual <form> sits OUTSIDE
+                    the table (HTML disallows nested forms; each row already
+                    contains a Retire / Edit / Verify form). We give it an
+                    id and the per-row checkboxes use the HTML5 `form`
+                    attribute to associate themselves with this form. */}
+                {bulkEligibleCount > 0 && <CipBulkVerifyControls />}
+                {bulkEligibleCount > 0 && (
+                  <form
+                    id="cip-bulk-verify-form"
+                    method="post"
+                    action="/api/admin/cip-reference/bulk-verify"
+                    className="rounded-md border border-border bg-bg-alt px-3 py-3 space-y-2"
+                    data-testid="cip-bulk-verify-form"
+                  >
+                    <div className="flex flex-wrap items-center gap-3 text-[12px]">
+                      <span
+                        className="text-text"
+                        data-testid="cip-bulk-verify-selected-count"
+                      >
+                        <span className="font-medium">Selected:</span>{' '}
+                        <span data-bulk-selected-count>0</span> of{' '}
+                        {bulkEligibleCount} eligible (DRAFT /
+                        PENDING_REVIEW). RETIRED and already-VERIFIED rows
+                        cannot be bulk-approved.
+                      </span>
+                      <label className="flex items-center gap-1 text-text-muted">
+                        <input
+                          type="checkbox"
+                          data-bulk-select-all
+                          data-testid="cip-bulk-select-all"
+                        />
+                        <span>Select all visible eligible</span>
+                      </label>
+                    </div>
+                    {bulkBlockedCount > 0 && (
+                      <p
+                        className="text-[11px] text-text-faint"
+                        data-testid="cip-bulk-verify-blocked-hint"
+                      >
+                        {bulkBlockedCount} eligible row(s) are still missing a
+                        source URL. You may still tick them — the API will
+                        skip them with a per-row reason instead of failing
+                        the whole batch.
+                      </p>
+                    )}
+                    <label className="flex items-start gap-2 text-[12px] text-text-muted">
+                      <input
+                        type="checkbox"
+                        name="acknowledgedVerifiedAgainstSource"
+                        required
+                        data-testid="cip-bulk-verify-ack"
+                      />
+                      <span>
+                        I have compared each selected row against the
+                        published CIP and/or Shooters World public source and
+                        confirm the transcribed values match. I understand
+                        these rows are reference metadata only — the app
+                        does not compute pressure, recommend charges, advise
+                        increases or decreases, or issue safe / unsafe
+                        verdicts.
+                      </span>
+                    </label>
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        className="h-7 px-3 rounded bg-success text-bg text-[12px] font-medium hover:opacity-90"
+                        data-testid="cip-bulk-verify-submit"
+                      >
+                        Bulk verify selected
+                      </button>
+                    </div>
+                  </form>
+                )}
                 <table className="w-full text-[12px]">
                   <thead className="text-left text-text-faint">
                     <tr>
+                      <th className="py-1 pr-2 font-medium w-6">
+                        <span className="sr-only">Select</span>
+                      </th>
                       <th className="py-1 pr-3 font-medium">Cartridge</th>
                       <th className="py-1 pr-3 font-medium">Powder</th>
                       <th className="py-1 pr-3 font-medium">Pmax</th>
@@ -648,12 +746,45 @@ export default async function AdminCipReferencePage({
                     </tr>
                   </thead>
                   <tbody className="text-text">
-                    {rows.map((r) => (
+                    {rows.map((r) => {
+                      const bulkEligible =
+                        r.verificationStatus === 'DRAFT' ||
+                        r.verificationStatus === 'PENDING_REVIEW';
+                      const bulkMissingSourceUrl =
+                        bulkEligible &&
+                        (r.sourceUrl == null || r.sourceUrl.length === 0);
+                      return (
                       <React.Fragment key={r.id}>
                       <tr
                         className="border-t border-border align-top"
                         data-testid={`cip-admin-row-${r.id}`}
                       >
+                        <td className="py-1.5 pr-2 align-top">
+                          {bulkEligible ? (
+                            <input
+                              type="checkbox"
+                              name="recordId"
+                              value={r.id}
+                              form="cip-bulk-verify-form"
+                              data-bulk-select-row
+                              data-testid={`cip-bulk-select-${r.id}`}
+                              aria-label={`Select ${r.cartridgeName} for bulk verify`}
+                            />
+                          ) : (
+                            <span
+                              className="inline-block w-3 h-3"
+                              aria-hidden
+                            />
+                          )}
+                          {bulkMissingSourceUrl && (
+                            <div
+                              className="text-[10px] text-text-faint mt-1"
+                              data-testid={`cip-bulk-missing-sourceurl-${r.id}`}
+                            >
+                              no URL
+                            </div>
+                          )}
+                        </td>
                         <td className="py-1.5 pr-3">
                           <div className="font-medium">{r.cartridgeName}</div>
                           {r.cartridgeCaliberLabel && (
@@ -751,12 +882,13 @@ export default async function AdminCipReferencePage({
                         className="border-t-0 align-top"
                         data-testid={`cip-admin-row-editor-${r.id}`}
                       >
-                        <td colSpan={8} className="py-0 pr-3">
+                        <td colSpan={9} className="py-0 pr-3">
                           <CipRowEditor record={r} />
                         </td>
                       </tr>
                       </React.Fragment>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
